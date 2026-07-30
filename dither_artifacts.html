@@ -1,0 +1,646 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>dithered artifacts</title>
+<style>
+  :root{ --bg:#ffffff; }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; background:var(--bg); overflow:hidden; }
+  body{ font-family:ui-monospace,"SF Mono",Menlo,monospace; }
+  #stage{ position:relative; width:100vw; height:100vh; }
+  canvas{ position:absolute; inset:0; width:100%; height:100%;
+    image-rendering:pixelated; image-rendering:crisp-edges; }
+  .hud{ position:absolute; left:16px; bottom:14px; z-index:2;
+    color:#111; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
+    opacity:.5; user-select:none; }
+  .hud b{ font-weight:600; }
+
+  /* postcard gallery (left) */
+  #galToggle{ position:absolute; top:14px; left:14px; z-index:6; width:26px; height:26px;
+    display:none; align-items:center; justify-content:center; cursor:pointer;
+    border:1px solid rgba(0,0,0,.14); border-radius:7px; background:rgba(255,255,255,.86);
+    backdrop-filter:blur(8px); color:#111; font-size:15px; line-height:1;
+    box-shadow:0 4px 14px rgba(0,0,0,.12); transition:left .22s ease; }
+  #gallery{ position:absolute; top:48px; left:14px; z-index:4; width:132px;
+    max-height:calc(100vh - 62px); overflow-y:auto; display:flex; flex-direction:column; gap:9px;
+    padding-right:3px; transition:transform .22s ease, opacity .22s ease; }
+  #gallery.hidden{ transform:translateX(-160px); opacity:0; pointer-events:none; }
+  #gallery:empty{ display:none; }
+  .pc{ display:block; position:relative; border:1px solid rgba(0,0,0,.14); border-radius:8px;
+    overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.12); background:#fff; cursor:pointer;
+    text-decoration:none; transition:transform .12s ease; }
+  .pc:hover{ transform:translateY(-2px); }
+  .pc img{ display:block; width:100%; height:auto; image-rendering:pixelated; }
+  .pc .dl{ position:absolute; top:6px; right:6px; width:22px; height:22px; display:flex;
+    align-items:center; justify-content:center; color:#fff; background:rgba(0,0,0,.5);
+    border-radius:6px; opacity:0; transition:opacity .12s; }
+  .pc .dl svg{ width:13px; height:13px; }
+  .pc:hover .dl{ opacity:1; }
+
+  /* control panel */
+  #panel{ position:absolute; top:14px; right:14px; z-index:5; width:260px;
+    background:rgba(255,255,255,.86); backdrop-filter:blur(8px);
+    border:1px solid rgba(0,0,0,.12); border-radius:12px;
+    box-shadow:0 8px 30px rgba(0,0,0,.12); color:#111;
+    font-size:11px; max-height:calc(100vh - 28px); display:flex; flex-direction:column; }
+  #panel.collapsed .body{ display:none; }
+  #panel .head{ display:flex; align-items:center; justify-content:space-between;
+    padding:10px 12px; cursor:pointer; user-select:none; }
+  #panel .head h1{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:600; }
+  #panel .head .tg{ font-size:14px; opacity:.5; }
+  #panel .body{ padding:4px 12px 12px; overflow-y:auto; }
+  .grp{ border-top:1px solid rgba(0,0,0,.08); padding:9px 0 4px; }
+  .grp:first-child{ border-top:0; }
+  .grp .t{ font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; opacity:.42; margin-bottom:6px; }
+  .row{ margin-bottom:9px; }
+  .row .lbl{ display:flex; justify-content:space-between; margin-bottom:3px; }
+  .row .lbl span:last-child{ opacity:.55; font-variant-numeric:tabular-nums; }
+  input[type=range]{ width:100%; height:3px; -webkit-appearance:none; appearance:none;
+    background:#111; border-radius:2px; outline:none; opacity:.85; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none;
+    width:13px; height:13px; border-radius:50%; background:#fff; border:2px solid #111; cursor:pointer; }
+  input[type=range]::-moz-range-thumb{ width:12px; height:12px; border-radius:50%;
+    background:#fff; border:2px solid #111; cursor:pointer; }
+  .chk{ display:flex; align-items:center; gap:7px; margin-bottom:9px; cursor:pointer; }
+  .chk input{ width:14px; height:14px; accent-color:#111; }
+  select.sel{ width:100%; font:inherit; font-size:11px; padding:5px 7px; border:1px solid rgba(0,0,0,.2);
+    border-radius:6px; background:#fff; color:#111; cursor:pointer; text-transform:capitalize; }
+  .cols{ display:flex; gap:8px; margin-bottom:9px; }
+  .cols label{ flex:1; display:flex; flex-direction:column; gap:4px; }
+  .cols input[type=color]{ width:100%; height:26px; border:1px solid rgba(0,0,0,.15);
+    border-radius:6px; background:none; cursor:pointer; padding:0; }
+  .btns{ display:flex; gap:7px; flex-wrap:wrap; }
+  .btns button{ flex:1; min-width:70px; font:inherit; font-size:10.5px; letter-spacing:.04em;
+    padding:7px 6px; border:1px solid #111; border-radius:7px; background:#111; color:#fff;
+    cursor:pointer; }
+  .btns button.ghost{ background:none; color:#111; }
+  .btns button.on{ background:#1a8f4c; border-color:#1a8f4c; color:#fff; }
+  .btns button:active{ transform:translateY(1px); }
+</style>
+</head>
+<body>
+  <div id="stage">
+    <canvas id="c"></canvas>
+    <button id="galToggle" title="Hide postcards">‹</button>
+    <div id="gallery"></div>
+    <div class="hud">dithered artifacts · <b id="shape">—</b> · <span id="count">0</span> spores</div>
+
+    <div id="panel">
+      <div class="head" id="phead"><h1>Controls</h1><span class="tg" id="ptg">–</span></div>
+      <div class="body" id="pbody"></div>
+    </div>
+  </div>
+<script>
+(() => {
+  const view = document.getElementById('c');
+  const vctx = view.getContext('2d');
+  const shapeEl = document.getElementById('shape');
+  const countEl = document.getElementById('count');
+  const TAU = Math.PI*2;
+  const rnd=(a,b)=>a+Math.random()*(b-a);
+  const rint=(a,b)=>Math.floor(rnd(a,b+1));
+  const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+
+  // ---------- live config ----------
+  const cfg = {
+    // field / render
+    targetW: 240,       // logical cells across (dither pixel size)
+    ditherScale: 1,     // bayer pattern zoom
+    radius: 3,          // spore disk radius (cells)
+    pixelStyle: 'square', // shape of each dither pixel
+    // population / motion
+    maxP: 1500,
+    growth: 3.2,        // multiply speed
+    settle: 0.0025,     // migration smoothing (lower = snappier)
+    // shape
+    shapeMs: 6000,
+    autoCycle: true,
+    fillFrac: 0.6,      // fraction of cycle spent filling
+    harmMin: 2,
+    harmMax: 5,
+    complexity: 1.0,    // harmonic amplitude scale
+    // tones
+    randomColors: true,
+    toneA: '#12b04a',
+    toneB: '#e01d3c',
+    bg:    '#ffffff',
+    mixLo: 0.16,
+    mixHi: 0.84,
+    jitter: 0.18,
+    // outline (third color)
+    outline: false,
+    toneC: '#111111',
+    outlineW: 2,
+    // draw mode
+    draw: false,
+    // state
+    paused: false
+  };
+
+  // ---------- buffers ----------
+  // fill is computed at low res (W x H) then upscaled to display (DW x DH) and
+  // intersected with a repeating pixel-shape tile so each dither cell takes a form.
+  let CW, CH, W, H, DW, DH, SCALE, img, rF, aF;
+  const bufCanvas=document.createElement('canvas'), bufCtx=bufCanvas.getContext('2d');
+  const layerCanvas=document.createElement('canvas'), layerCtx=layerCanvas.getContext('2d');
+  let curPattern=null;
+  function resize(){
+    CW = view.clientWidth; CH = view.clientHeight;
+    SCALE = Math.max(2, Math.round(CW / cfg.targetW));
+    W = Math.ceil(CW / SCALE); H = Math.ceil(CH / SCALE);
+    DW = W*SCALE; DH = H*SCALE;
+    view.width = DW; view.height = DH;
+    bufCanvas.width = W; bufCanvas.height = H;
+    layerCanvas.width = DW; layerCanvas.height = DH;
+    vctx.imageSmoothingEnabled = false;
+    img = bufCtx.createImageData(W, H);
+    rF = new Float32Array(W*H); aF = new Float32Array(W*H);
+    buildTile();
+    reproject();
+  }
+
+  // ---------- pixel-shape tiles ----------
+  const PIXEL_STYLES = ['square','round','dot','diamond','plus','x','ring','hline','vline'];
+  function makeTile(style, s){
+    const t=document.createElement('canvas'); t.width=s; t.height=s;
+    const c=t.getContext('2d'); c.fillStyle='#fff'; c.strokeStyle='#fff';
+    const h=s/2, th=Math.max(1, s*0.34);
+    switch(style){
+      case 'round':  c.beginPath(); c.arc(h,h,h,0,TAU); c.fill(); break;
+      case 'dot':    c.beginPath(); c.arc(h,h,s*0.36,0,TAU); c.fill(); break;
+      case 'diamond':c.beginPath(); c.moveTo(h,0); c.lineTo(s,h); c.lineTo(h,s); c.lineTo(0,h); c.closePath(); c.fill(); break;
+      case 'plus':   c.fillRect((s-th)/2,0,th,s); c.fillRect(0,(s-th)/2,s,th); break;
+      case 'x':      c.lineWidth=th; c.lineCap='round'; c.beginPath();
+                     c.moveTo(th*0.4,th*0.4); c.lineTo(s-th*0.4,s-th*0.4);
+                     c.moveTo(s-th*0.4,th*0.4); c.lineTo(th*0.4,s-th*0.4); c.stroke(); break;
+      case 'ring':   c.lineWidth=Math.max(1,s*0.2); c.beginPath(); c.arc(h,h,h-c.lineWidth*0.6,0,TAU); c.stroke(); break;
+      case 'hline':  c.fillRect(0,(s-th)/2,s,th); break;
+      case 'vline':  c.fillRect((s-th)/2,0,th,s); break;
+      default: return null;   // 'square' -> no mask
+    }
+    return t;
+  }
+  function buildTile(){
+    const tile=makeTile(cfg.pixelStyle, SCALE);
+    curPattern = tile ? layerCtx.createPattern(tile,'repeat') : null;
+  }
+  let projS=1, projX=0, projY=0;
+  function reproject(){ projS=Math.min(W,H)*0.5*0.82; projX=W*0.5; projY=H*0.5; }
+  const toCellX = nx => projX + nx*projS;
+  const toCellY = ny => projY + ny*projS;
+
+  // ---------- Bayer 8x8 ----------
+  const BAYER_N = 8;
+  const BAYER = (() => {
+    const m = [[0,32,8,40,2,34,10,42],[48,16,56,24,50,18,58,26],
+               [12,44,4,36,14,46,6,38],[60,28,52,20,62,30,54,22],
+               [3,35,11,43,1,33,9,41],[51,19,59,27,49,17,57,25],
+               [15,47,7,39,13,45,5,37],[63,31,55,23,61,29,53,21]];
+    const f = new Float32Array(64);
+    for(let y=0;y<8;y++) for(let x=0;x<8;x++) f[y*8+x] = (m[y][x]+0.5)/64;
+    return f;
+  })();
+
+  // ---------- procedural random closed shape ----------
+  let curFn = null;
+  function genShape(){
+    const n=rint(cfg.harmMin, cfg.harmMax), comps=[];
+    for(let j=0;j<n;j++) comps.push({ k:rint(2,8), amp:rnd(0.05,0.34)*cfg.complexity/(1+j*0.35), ph:rnd(0,TAU) });
+    const base=rnd(0.55,0.85);
+    const ex=rnd(0.78,1.22), ey=rnd(0.78,1.22);
+    const a=rnd(0,TAU), ca=Math.cos(a), sa=Math.sin(a);
+    return (u)=>{
+      const t=u*TAU; let r=base;
+      for(const c of comps) r+=c.amp*Math.cos(c.k*t+c.ph);
+      if(r<0.08) r=0.08;
+      const x=Math.cos(t)*r*ex, y=Math.sin(t)*r*ey;
+      return [x*ca-y*sa, x*sa+y*ca];
+    };
+  }
+
+  // ---------- interior fill field ----------
+  let FIELD = [];
+  let BX=null, BY=null;   // scaled boundary polygon (normalized -1..1 space)
+  function inPoly(x,y,px,py){
+    let inside=false;
+    for(let i=0,j=px.length-1;i<px.length;j=i++){
+      const xi=px[i],yi=py[i],xj=px[j],yj=py[j];
+      if(((yi>y)!==(yj>y)) && (x < (xj-xi)*(y-yi)/(yj-yi)+xi)) inside=!inside;
+    }
+    return inside;
+  }
+  function buildField(fn){
+    const N=360, px=new Float32Array(N), py=new Float32Array(N);
+    let maxR=1e-6;
+    for(let i=0;i<N;i++){ const q=fn(i/N); px[i]=q[0]; py[i]=q[1];
+      const d=Math.hypot(q[0],q[1]); if(d>maxR)maxR=d; }
+    const sc=0.86/maxR;
+    let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+    for(let i=0;i<N;i++){ px[i]*=sc; py[i]*=sc;
+      if(px[i]<minx)minx=px[i]; if(px[i]>maxx)maxx=px[i];
+      if(py[i]<miny)miny=py[i]; if(py[i]>maxy)maxy=py[i]; }
+    const out=[]; let tries=0, cap=cfg.maxP*60;
+    while(out.length<cfg.maxP && tries<cap){ tries++;
+      const x=rnd(minx,maxx), y=rnd(miny,maxy);
+      if(inPoly(x,y,px,py)) out.push([x,y, Math.min(1,Math.hypot(x,y)/0.86)]);
+    }
+    if(out.length===0){ for(let i=0;i<N;i++) out.push([px[i],py[i],1]); }
+    FIELD=out; BX=px; BY=py;
+  }
+
+  // ---------- tones ----------
+  let rgbA=[18,176,74], rgbB=[224,29,60];
+  const hex2rgb = h => [parseInt(h.slice(1,3),16),parseInt(h.slice(3,5),16),parseInt(h.slice(5,7),16)];
+  const rgb2hex = c => '#'+c.map(v=>clamp(v|0,0,255).toString(16).padStart(2,'0')).join('');
+  function hsv(h,s,v){
+    h=(h%1+1)%1; const i=Math.floor(h*6),f=h*6-i;
+    const p=v*(1-s),q=v*(1-f*s),tt=v*(1-(1-f)*s);
+    switch(i%6){ case 0:return[v,tt,p]; case 1:return[q,v,p]; case 2:return[p,v,tt];
+      case 3:return[p,q,v]; case 4:return[tt,p,v]; default:return[v,p,q]; }
+  }
+  function randomTones(){
+    const ha=Math.random(), hb=(ha+rnd(0.28,0.55)*(Math.random()<0.5?1:-1)+1)%1;
+    // outline = complementary hue: opposite the average of the two fill tones
+    const meanH=Math.atan2(Math.sin(ha*TAU)+Math.sin(hb*TAU), Math.cos(ha*TAU)+Math.cos(hb*TAU))/TAU;
+    const hc=(meanH+0.5+1)%1;
+    rgbA=hsv(ha,1,1).map(v=>v*255|0);
+    rgbB=hsv(hb,1,1).map(v=>v*255|0);
+    const rc=hsv(hc, 1, 1).map(v=>v*255|0);   // vibrant complementary
+    cfg.toneA=rgb2hex(rgbA); cfg.toneB=rgb2hex(rgbB); cfg.toneC=rgb2hex(rc);
+    if(uiTone){ uiTone.a.value=cfg.toneA; uiTone.b.value=cfg.toneB; if(uiTone.c) uiTone.c.value=cfg.toneC; }
+  }
+
+  // ---------- spores ----------
+  let parts=[]; const spawnAcc={v:0}; let targetCount=1;
+  function makePart(x,y){ return { x, y, tx:0, ty:0, mix:0.5, seed:Math.random() }; }
+  function assignOne(p,i){
+    const f=FIELD[i%FIELD.length];
+    p.tx=f[0]; p.ty=f[1];
+    let m=f[2] + (p.seed-0.5)*cfg.jitter;
+    p.mix = clamp(m, cfg.mixLo, cfg.mixHi);
+  }
+  function reassignAll(){ for(let i=0;i<parts.length;i++) assignOne(parts[i], i); }
+  function refield(){ if(curFn){ buildField(curFn); if(parts.length>cfg.maxP) parts.length=cfg.maxP; reassignAll(); } }
+
+  function newShape(){
+    if(hasArtifact) capturePostcard();      // snapshot the outgoing artifact
+    shapeEl.textContent='form '+(++formN);
+    curFn=genShape();
+    if(cfg.randomColors) randomTones();
+    buildField(curFn);
+    reassignAll();
+    hasArtifact=true;
+  }
+  let formN=0;
+
+  function reset(){ parts=[makePart(0,0)]; targetCount=1; newShape(); }
+
+  // ---------- loop ----------
+  let last=performance.now(), shapeClock=0;
+  function frame(now){
+    const dt=Math.min(50,now-last)/1000; last=now;
+    if(!cfg.paused){
+      shapeClock += dt*1000;
+      if(cfg.autoCycle && shapeClock>cfg.shapeMs){ shapeClock=0; newShape(); }
+
+      const fill=Math.min(1, shapeClock/(cfg.shapeMs*cfg.fillFrac));
+      targetCount=Math.max(1, Math.round(1+fill*fill*(cfg.maxP-1)));
+
+      spawnAcc.v += (targetCount-parts.length)*dt*cfg.growth;
+      while(spawnAcc.v>=1 && parts.length<targetCount && parts.length<cfg.maxP){
+        spawnAcc.v-=1;
+        const par=parts[(Math.random()*parts.length)|0];
+        const a=Math.random()*TAU,d=0.02+Math.random()*0.04;
+        const ch=makePart(par.x+Math.cos(a)*d, par.y+Math.sin(a)*d);
+        parts.push(ch); assignOne(ch, parts.length-1);
+      }
+      while(parts.length>targetCount+2 && parts.length>1) parts.pop();
+
+      step(dt);
+    }
+    render();
+    countEl.textContent=parts.length;
+    requestAnimationFrame(frame);
+  }
+
+  function step(dt){
+    const ease=1-Math.pow(cfg.settle, dt);
+    for(let i=0;i<parts.length;i++){
+      const p=parts[i];
+      p.x += (p.tx - p.x)*ease;
+      p.y += (p.ty - p.y)*ease;
+    }
+  }
+
+  function render(){
+    rF.fill(0); aF.fill(0);
+    const R=cfg.radius, R2=R*R;
+    for(let i=0;i<parts.length;i++){
+      const p=parts[i];
+      const cx=toCellX(p.x), cy=toCellY(p.y);
+      const ix0=Math.max(0,(cx-R)|0), ix1=Math.min(W-1,(cx+R)|0);
+      const iy0=Math.max(0,(cy-R)|0), iy1=Math.min(H-1,(cy+R)|0);
+      if(ix0>ix1||iy0>iy1) continue;
+      const mix=p.mix;
+      for(let y=iy0;y<=iy1;y++){ const dy=y-cy;
+        for(let x=ix0;x<=ix1;x++){ const dx=x-cx;
+          if(dx*dx+dy*dy>R2) continue;
+          const o=y*W+x; rF[o]+=mix; aF[o]+=1;
+        }
+      }
+    }
+    const ar=rgbA[0],ag=rgbA[1],ab=rgbA[2], br=rgbB[0],bg=rgbB[1],bb=rgbB[2];
+    const ds=cfg.ditherScale, d=img.data;
+    for(let y=0;y<H;y++){ const by=(((y/ds)|0)%BAYER_N)*BAYER_N;
+      for(let x=0;x<W;x++){
+        const o=y*W+x, o4=o<<2, cov=aF[o];
+        if(cov>0){
+          const m=rF[o]/cov;
+          const useB = BAYER[by+(((x/ds)|0)%BAYER_N)] < m;
+          if(useB){ d[o4]=br; d[o4+1]=bg; d[o4+2]=bb; }
+          else    { d[o4]=ar; d[o4+1]=ag; d[o4+2]=ab; }
+          d[o4+3]=255;
+        } else { d[o4+3]=0; }   // empty -> transparent (bg shows through)
+      }
+    }
+    if(cfg.outline && BX) drawPath(d, BX, BY, true, hex2rgb(cfg.toneC), cfg.outlineW);
+    if(cfg.draw && drawing && strokeX.length>1)
+      drawPath(d, strokeX, strokeY, false, hex2rgb(cfg.toneC), Math.max(2,cfg.outlineW));
+    bufCtx.putImageData(img,0,0);
+
+    // upscale filled cells to display res, then carve into the pixel shape
+    layerCtx.globalCompositeOperation='source-over';
+    layerCtx.clearRect(0,0,DW,DH);
+    layerCtx.imageSmoothingEnabled=false;
+    layerCtx.drawImage(bufCanvas,0,0,DW,DH);
+    if(curPattern){
+      layerCtx.globalCompositeOperation='destination-in';
+      layerCtx.fillStyle=curPattern;
+      layerCtx.fillRect(0,0,DW,DH);
+    }
+    // paint background then the shaped dither layer
+    vctx.fillStyle=cfg.bg; vctx.fillRect(0,0,DW,DH);
+    vctx.drawImage(layerCanvas,0,0);
+  }
+
+  // stamp a poly-line/loop into the pixel buffer, respecting the low-res grid
+  function drawPath(d, xs, ys, closed, rgb, width){
+    const cr=rgb[0],cg=rgb[1],cb=rgb[2];
+    const rw=Math.max(0,(width-1)/2), r=Math.ceil(rw);
+    const stamp=(px,py)=>{
+      for(let sy=-r;sy<=r;sy++){ for(let sx=-r;sx<=r;sx++){
+        if(sx*sx+sy*sy>rw*rw+0.5) continue;
+        const x=px+sx, y=py+sy;
+        if(x<0||y<0||x>=W||y>=H) continue;
+        const o4=(y*W+x)<<2; d[o4]=cr; d[o4+1]=cg; d[o4+2]=cb; d[o4+3]=255;
+      }}
+    };
+    const n=xs.length, lim=closed?n:n-1;
+    for(let i=0;i<lim;i++){
+      const j=(i+1)%n;
+      const x0=toCellX(xs[i]), y0=toCellY(ys[i]);
+      const x1=toCellX(xs[j]), y1=toCellY(ys[j]);
+      const steps=Math.max(1, Math.ceil(Math.hypot(x1-x0,y1-y0)));
+      for(let s=0;s<=steps;s++){ const t=s/steps;
+        stamp(Math.round(x0+(x1-x0)*t), Math.round(y0+(y1-y0)*t)); }
+    }
+  }
+
+  // ---------- draw mode ----------
+  let drawing=false, strokeX=[], strokeY=[];
+  function screenToNorm(clientX, clientY){
+    const rect=view.getBoundingClientRect();
+    const cx=(clientX-rect.left)/rect.width*W;
+    const cy=(clientY-rect.top)/rect.height*H;
+    return [ (cx-projX)/projS, (cy-projY)/projS ];
+  }
+  function addStroke(e){
+    const [nx,ny]=screenToNorm(e.clientX,e.clientY);
+    const n=strokeX.length;
+    if(n===0 || Math.hypot(nx-strokeX[n-1],ny-strokeY[n-1])>0.01){ strokeX.push(nx); strokeY.push(ny); }
+  }
+  function finishStroke(){
+    if(strokeX.length>=3) fillFromStroke(strokeX.slice(), strokeY.slice());
+    strokeX=[]; strokeY=[];
+  }
+  function fillFromStroke(xs,ys){
+    if(hasArtifact) capturePostcard();      // snapshot the outgoing artifact
+    const N=xs.length; let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9,cx=0,cy=0;
+    for(let i=0;i<N;i++){ cx+=xs[i]; cy+=ys[i];
+      if(xs[i]<minx)minx=xs[i]; if(xs[i]>maxx)maxx=xs[i];
+      if(ys[i]<miny)miny=ys[i]; if(ys[i]>maxy)maxy=ys[i]; }
+    cx/=N; cy/=N;
+    let maxR=1e-6; for(let i=0;i<N;i++){ const d=Math.hypot(xs[i]-cx,ys[i]-cy); if(d>maxR)maxR=d; }
+    const px=Float32Array.from(xs), py=Float32Array.from(ys);
+    const out=[]; let tries=0, cap=cfg.maxP*80;
+    while(out.length<cfg.maxP && tries<cap){ tries++;
+      const x=rnd(minx,maxx), y=rnd(miny,maxy);
+      if(inPoly(x,y,px,py)) out.push([x,y, Math.min(1,Math.hypot(x-cx,y-cy)/maxR)]);
+    }
+    if(out.length===0){ for(let i=0;i<N;i++) out.push([px[i],py[i],1]); }
+    FIELD=out; BX=px; BY=py; curFn=null;
+    if(cfg.randomColors) randomTones();
+    parts=[makePart(cx,cy)]; targetCount=1; shapeClock=0;   // regrow inside the drawing
+    shapeEl.textContent='drawn';
+  }
+  view.addEventListener('pointerdown', e=>{
+    if(!cfg.draw) return;
+    drawing=true; strokeX=[]; strokeY=[];
+    try{ view.setPointerCapture(e.pointerId); }catch(_){}
+    addStroke(e); e.preventDefault();
+  });
+  view.addEventListener('pointermove', e=>{ if(cfg.draw && drawing) addStroke(e); });
+  view.addEventListener('pointerup', e=>{ if(cfg.draw && drawing){ drawing=false; finishStroke(); } });
+
+  // ---------- postcard gallery ----------
+  // Snapshot only when an artifact finishes (not per frame): one downscale + one
+  // WebP blob, reused for both the preview thumb and the download. Ring buffer of 10.
+  const gallery=document.getElementById('gallery');
+  const galToggle=document.getElementById('galToggle');
+  galToggle.onclick=()=>{
+    const hidden=gallery.classList.toggle('hidden');
+    galToggle.textContent = hidden?'›':'‹';
+    galToggle.title = hidden?'Show postcards':'Hide postcards';
+  };
+  const postcards=[]; const MAX_CARDS=10; let hasArtifact=false;
+  const DL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>';
+  function capturePostcard(){
+    if(!DW) return;
+    // high-fidelity: capture at native display res (long-edge capped), lossless PNG
+    const CAP=1600, s=Math.min(1, CAP/Math.max(DW,DH));
+    const tw=Math.max(1,Math.round(DW*s)), th=Math.max(1,Math.round(DH*s));
+    let src=view;
+    if(s<1){ const t=document.createElement('canvas'); t.width=tw; t.height=th;
+      const c=t.getContext('2d'); c.imageSmoothingEnabled=false; c.drawImage(view,0,0,tw,th); src=t; }
+    const id=formN;
+    src.toBlob(b=>{ if(b) addPostcard(URL.createObjectURL(b), id); }, 'image/png');
+  }
+  function addPostcard(url,id){
+    postcards.push({url});
+    const a=document.createElement('a');
+    a.className='pc'; a.href=url; a.download=`dither-postcard-${id}.png`; a.title='Download';
+    a.innerHTML=`<img src="${url}" alt="artifact ${id}" loading="lazy"><span class="dl">${DL_ICON}</span>`;
+    gallery.insertBefore(a, gallery.firstChild);                 // newest on top
+    while(postcards.length>MAX_CARDS){                            // evict oldest, free memory
+      URL.revokeObjectURL(postcards.shift().url);
+      if(gallery.lastChild) gallery.removeChild(gallery.lastChild);
+    }
+    galToggle.style.display='flex';                              // reveal collapse handle
+  }
+
+  // ---------- export ----------
+  function downloadPNG(){
+    // the view canvas already holds the crisp full-res render
+    const a=document.createElement('a');
+    a.download=`dither-form-${formN}-${Date.now()}.png`;
+    a.href=view.toDataURL('image/png');
+    a.click();
+  }
+
+  // ---------- UI ----------
+  let uiTone=null;
+  function buildUI(){
+    const body=document.getElementById('pbody');
+    const SPEC=[
+      ['SHAPE',[
+        ['shapeMs','Cycle (s)',1,20,0.5, v=>v/1000, s=>s*1000, 1],
+        ['fillFrac','Fill fraction',0.2,1,0.05],
+        ['harmMin','Harmonics min',1,6,1],
+        ['harmMax','Harmonics max',2,10,1],
+        ['complexity','Complexity',0.2,2,0.05],
+      ]],
+      ['POPULATION',[
+        ['maxP','Max spores',100,3000,50, null,null,0, refield],
+        ['growth','Multiply speed',0.5,8,0.1],
+        ['settle','Motion smoothing',0.0004,0.05,0.0004, null,null,4],
+        ['radius','Spore size',1,7,1, null,null,0],
+      ]],
+      ['RENDER',[
+        ['targetW','Resolution',80,480,10, null,null,0, resize],
+        ['ditherScale','Dither scale',1,5,1, null,null,0],
+      ]],
+      ['TONES',[
+        ['mixLo','Mix floor',0,0.5,0.02],
+        ['mixHi','Mix ceiling',0.5,1,0.02],
+        ['jitter','Boundary fuzz',0,0.6,0.02],
+        ['outlineW','Outline width',1,8,1, null,null,0],
+      ]],
+    ];
+    for(const [title,rows] of SPEC){
+      const g=document.createElement('div'); g.className='grp';
+      g.innerHTML=`<div class="t">${title}</div>`;
+      for(const r of rows) g.appendChild(sliderRow(r));
+      if(title==='RENDER') g.appendChild(selectRow('pixelStyle','Pixel style', PIXEL_STYLES, buildTile));
+      body.appendChild(g);
+    }
+    // tones group extras (checkbox + colors)
+    const gt=document.createElement('div'); gt.className='grp';
+    gt.innerHTML='<div class="t">Colors</div>';
+    gt.appendChild(checkRow('randomColors','Random colors each shape'));
+    const cols=document.createElement('div'); cols.className='cols';
+    cols.innerHTML=`<label>Tone A<input type="color" id="tA" value="${cfg.toneA}"></label>
+                    <label>Tone B<input type="color" id="tB" value="${cfg.toneB}"></label>
+                    <label>Bg<input type="color" id="tBg" value="${cfg.bg}"></label>`;
+    gt.appendChild(cols);
+    gt.appendChild(checkRow('outline','Outline (third color)'));
+    const cols2=document.createElement('div'); cols2.className='cols';
+    cols2.innerHTML=`<label>Tone C (outline)<input type="color" id="tC" value="${cfg.toneC}"></label>`;
+    gt.appendChild(cols2); body.appendChild(gt);
+    const tA=cols.querySelector('#tA'), tB=cols.querySelector('#tB'), tBg=cols.querySelector('#tBg');
+    const tC=cols2.querySelector('#tC');
+    uiTone={a:tA,b:tB,c:tC};
+    tA.oninput=()=>{ cfg.toneA=tA.value; rgbA=hex2rgb(tA.value); cfg.randomColors=false; syncRandChk(); };
+    tB.oninput=()=>{ cfg.toneB=tB.value; rgbB=hex2rgb(tB.value); cfg.randomColors=false; syncRandChk(); };
+    tBg.oninput=()=>{ cfg.bg=tBg.value; };
+    tC.oninput=()=>{ cfg.toneC=tC.value; };
+
+    // playback group
+    const gp=document.createElement('div'); gp.className='grp';
+    gp.innerHTML='<div class="t">Playback</div>';
+    gp.appendChild(checkRow('autoCycle','Auto-cycle shapes'));
+    const b=document.createElement('div'); b.className='btns';
+    b.innerHTML=`<button id="bDraw" class="ghost">✎ Draw mode</button>
+                 <button id="bNew">New shape</button>
+                 <button id="bCol" class="ghost">Shuffle colors</button>
+                 <button id="bPause" class="ghost">Pause</button>`;
+    gp.appendChild(b); body.appendChild(gp);
+    const bd=b.querySelector('#bDraw');
+    bd.onclick=()=>{
+      cfg.draw=!cfg.draw;
+      bd.classList.toggle('on', cfg.draw);
+      view.style.cursor = cfg.draw?'crosshair':'default';
+      if(cfg.draw){                       // drawing replaces the auto cycle
+        cfg.autoCycle=false; cfg.outline=true;
+        const ac=document.querySelector('.chk input[data-key=autoCycle]'); if(ac) ac.checked=false;
+        const oc=document.querySelector('.chk input[data-key=outline]');  if(oc) oc.checked=true;
+      }
+    };
+    b.querySelector('#bNew').onclick=()=>{ shapeClock=0; newShape(); };
+    b.querySelector('#bCol').onclick=()=>{ randomTones(); };
+    const bp=b.querySelector('#bPause');
+    bp.onclick=()=>{ cfg.paused=!cfg.paused; bp.textContent=cfg.paused?'Play':'Pause'; };
+
+    // export
+    const ge=document.createElement('div'); ge.className='grp';
+    ge.innerHTML='<div class="t">Export</div>';
+    const be=document.createElement('div'); be.className='btns';
+    be.innerHTML=`<button id="bPng">Download PNG</button>
+                  <button id="bCard" class="ghost">Save postcard</button>`;
+    ge.appendChild(be); body.appendChild(ge);
+    be.querySelector('#bPng').onclick=downloadPNG;
+    be.querySelector('#bCard').onclick=capturePostcard;
+
+    rgbA=hex2rgb(cfg.toneA); rgbB=hex2rgb(cfg.toneB);
+  }
+
+  function sliderRow(spec){
+    const [key,label,min,max,stp, disp, parse, dec=2, after] = spec;
+    const row=document.createElement('div'); row.className='row';
+    const shown = disp?disp(cfg[key]):cfg[key];
+    row.innerHTML=`<div class="lbl"><span>${label}</span><span class="v">${(+shown).toFixed(dec)}</span></div>`;
+    const inp=document.createElement('input'); inp.type='range';
+    inp.min = disp?disp(min):min; inp.max = disp?disp(max):max; inp.step=stp;
+    inp.value = disp?disp(cfg[key]):cfg[key];
+    const vEl=row.querySelector('.v');
+    inp.oninput=()=>{
+      const raw = parse?parse(+inp.value):+inp.value;
+      cfg[key]=raw; vEl.textContent=(+inp.value).toFixed(dec);
+      if(after) after();
+    };
+    row.appendChild(inp); return row;
+  }
+  function selectRow(key,label,options,after){
+    const row=document.createElement('div'); row.className='row';
+    row.innerHTML=`<div class="lbl"><span>${label}</span></div>`;
+    const sel=document.createElement('select'); sel.className='sel';
+    for(const o of options){ const op=document.createElement('option');
+      op.value=o; op.textContent=o; if(o===cfg[key]) op.selected=true; sel.appendChild(op); }
+    sel.onchange=()=>{ cfg[key]=sel.value; if(after) after(); };
+    row.appendChild(sel); return row;
+  }
+  function checkRow(key,label){
+    const l=document.createElement('label'); l.className='chk';
+    l.innerHTML=`<input type="checkbox" ${cfg[key]?'checked':''}><span>${label}</span>`;
+    const c=l.querySelector('input'); c.dataset.key=key;
+    c.onchange=()=>{ cfg[key]=c.checked; };
+    return l;
+  }
+  function syncRandChk(){ const c=document.querySelector('.chk input[data-key=randomColors]'); if(c) c.checked=cfg.randomColors; }
+
+  // panel collapse
+  const panel=document.getElementById('panel');
+  document.getElementById('phead').onclick=()=>{
+    panel.classList.toggle('collapsed');
+    document.getElementById('ptg').textContent = panel.classList.contains('collapsed')?'+':'–';
+  };
+
+  // ---------- boot ----------
+  window.addEventListener('resize', resize);
+  buildUI(); resize(); reset();
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
