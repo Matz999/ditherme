@@ -12,80 +12,110 @@
   #stage{ position:relative; width:100vw; height:100vh; }
   canvas{ position:absolute; inset:0; width:100%; height:100%;
     image-rendering:pixelated; image-rendering:crisp-edges; }
-  .hud{ position:absolute; left:16px; bottom:14px; z-index:2;
-    color:#111; font-size:11px; letter-spacing:.14em; text-transform:uppercase;
-    opacity:.5; user-select:none; }
-  .hud b{ font-weight:600; }
 
-  /* postcard gallery (left) */
-  #galToggle{ position:absolute; top:14px; left:14px; z-index:6; width:26px; height:26px;
-    display:none; align-items:center; justify-content:center; cursor:pointer;
-    border:1px solid rgba(0,0,0,.14); border-radius:7px; background:rgba(255,255,255,.86);
-    backdrop-filter:blur(8px); color:#111; font-size:15px; line-height:1;
-    box-shadow:0 4px 14px rgba(0,0,0,.12); transition:left .22s ease; }
-  #gallery{ position:absolute; top:48px; left:14px; z-index:4; width:132px;
-    max-height:calc(100vh - 62px); overflow-y:auto; display:flex; flex-direction:column; gap:9px;
-    padding-right:3px; transition:transform .22s ease, opacity .22s ease; }
-  #gallery.hidden{ transform:translateX(-160px); opacity:0; pointer-events:none; }
-  #gallery:empty{ display:none; }
-  .pc{ display:block; position:relative; border:1px solid rgba(0,0,0,.14); border-radius:8px;
-    overflow:hidden; box-shadow:0 4px 14px rgba(0,0,0,.12); background:#fff; cursor:pointer;
-    text-decoration:none; transition:transform .12s ease; }
-  .pc:hover{ transform:translateY(-2px); }
-  .pc img{ display:block; width:100%; height:auto; image-rendering:pixelated; }
+  .pc{ -webkit-user-drag:none; cursor:grab; }
+
+  /* ---- Liquid UI: gooey glass postcard stack (left) ---- */
+  #galToggle{ position:absolute; top:14px; left:14px; z-index:6; width:28px; height:28px;
+    display:none; align-items:center; justify-content:center; cursor:pointer; color:#111;
+    font-size:15px; line-height:1; border:1px solid rgba(255,255,255,.6); border-radius:13px;
+    background:rgba(255,255,255,.5); -webkit-backdrop-filter:blur(18px) saturate(180%);
+    backdrop-filter:blur(18px) saturate(180%);
+    box-shadow:0 6px 18px rgba(0,0,0,.14), inset 0 1px 0 rgba(255,255,255,.75);
+    transition:transform .2s ease; }
+  #galToggle:active{ transform:scale(.94); }
+  #gallery{ position:absolute; top:52px; left:14px; z-index:4; width:118px;
+    max-height:calc(100vh - 66px); overflow-y:auto; scrollbar-width:none;
+    transition:transform .24s ease, opacity .24s ease; }
+  #gallery::-webkit-scrollbar{ display:none; }
+  #gallery.hidden{ transform:translateX(-170px); opacity:0; pointer-events:none; }
+  /* two synced layers: gooey glass blobs behind, crisp thumbnails on top */
+  #galGoo{ position:absolute; top:0; left:0; right:0; z-index:0; pointer-events:none;
+    display:flex; flex-direction:column; gap:7px; filter:url(#goo); }
+  #galGoo:empty{ display:none; }
+  #galCards{ position:relative; z-index:1; display:flex; flex-direction:column; gap:7px; }
+  .blob{ width:100%; aspect-ratio:1/1; border-radius:19px; transform:scale(1.06);
+    transform-origin:center; background:linear-gradient(155deg, rgba(255,255,255,.97), rgba(243,245,250,.9)); }
+  .pc{ display:block; position:relative; width:100%; aspect-ratio:1/1; border-radius:15px;
+    overflow:hidden; cursor:pointer; text-decoration:none; transition:transform .16s ease;
+    border:1px solid rgba(255,255,255,.7);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.6), 0 6px 18px rgba(0,0,0,.16); }
+  .pc:hover{ transform:translateY(-2px) scale(1.03); }
+  .pc img{ display:block; width:100%; height:100%; object-fit:contain; padding:8px;
+    image-rendering:pixelated; }
   .pc .dl{ position:absolute; top:6px; right:6px; width:22px; height:22px; display:flex;
-    align-items:center; justify-content:center; color:#fff; background:rgba(0,0,0,.5);
-    border-radius:6px; opacity:0; transition:opacity .12s; }
+    align-items:center; justify-content:center; color:#fff; border-radius:8px;
+    background:rgba(0,0,0,.42); -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    opacity:0; transition:opacity .14s; }
   .pc .dl svg{ width:13px; height:13px; }
   .pc:hover .dl{ opacity:1; }
 
-  /* control panel */
-  #panel{ position:absolute; top:14px; right:14px; z-index:5; width:260px;
-    background:rgba(255,255,255,.86); backdrop-filter:blur(8px);
-    border:1px solid rgba(0,0,0,.12); border-radius:12px;
-    box-shadow:0 8px 30px rgba(0,0,0,.12); color:#111;
+  /* control panel — liquid glass */
+  #panel{ position:absolute; top:14px; right:14px; z-index:5; width:264px;
+    background:rgba(255,255,255,.5); -webkit-backdrop-filter:blur(22px) saturate(180%);
+    backdrop-filter:blur(22px) saturate(180%);
+    border:1px solid rgba(255,255,255,.55); border-radius:22px; color:#111;
+    box-shadow:0 14px 44px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.7), inset 0 -1px 0 rgba(0,0,0,.05);
     font-size:11px; max-height:calc(100vh - 28px); display:flex; flex-direction:column; }
   #panel.collapsed .body{ display:none; }
   #panel .head{ display:flex; align-items:center; justify-content:space-between;
-    padding:10px 12px; cursor:pointer; user-select:none; }
-  #panel .head h1{ font-size:11px; letter-spacing:.14em; text-transform:uppercase; font-weight:600; }
+    padding:12px 15px; cursor:pointer; user-select:none; }
+  #panel .head h1{ font-size:11px; letter-spacing:.16em; text-transform:uppercase; font-weight:600; }
   #panel .head .tg{ font-size:14px; opacity:.5; }
-  #panel .body{ padding:4px 12px 12px; overflow-y:auto; }
-  .grp{ border-top:1px solid rgba(0,0,0,.08); padding:9px 0 4px; }
+  #panel .body{ padding:2px 15px 14px; overflow-y:auto; }
+  .grp{ border-top:1px solid rgba(255,255,255,.5); padding:10px 0 4px; }
   .grp:first-child{ border-top:0; }
-  .grp .t{ font-size:9.5px; letter-spacing:.16em; text-transform:uppercase; opacity:.42; margin-bottom:6px; }
-  .row{ margin-bottom:9px; }
-  .row .lbl{ display:flex; justify-content:space-between; margin-bottom:3px; }
+  .grp .t{ font-size:9.5px; letter-spacing:.17em; text-transform:uppercase; opacity:.45; margin-bottom:7px; }
+  .row{ margin-bottom:10px; }
+  .row .lbl{ display:flex; justify-content:space-between; margin-bottom:4px; }
   .row .lbl span:last-child{ opacity:.55; font-variant-numeric:tabular-nums; }
-  input[type=range]{ width:100%; height:3px; -webkit-appearance:none; appearance:none;
-    background:#111; border-radius:2px; outline:none; opacity:.85; }
+  input[type=range]{ width:100%; height:4px; -webkit-appearance:none; appearance:none;
+    background:rgba(17,17,17,.22); border-radius:3px; outline:none; }
   input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none;
-    width:13px; height:13px; border-radius:50%; background:#fff; border:2px solid #111; cursor:pointer; }
-  input[type=range]::-moz-range-thumb{ width:12px; height:12px; border-radius:50%;
-    background:#fff; border:2px solid #111; cursor:pointer; }
-  .chk{ display:flex; align-items:center; gap:7px; margin-bottom:9px; cursor:pointer; }
-  .chk input{ width:14px; height:14px; accent-color:#111; }
-  select.sel{ width:100%; font:inherit; font-size:11px; padding:5px 7px; border:1px solid rgba(0,0,0,.2);
-    border-radius:6px; background:#fff; color:#111; cursor:pointer; text-transform:capitalize; }
-  .cols{ display:flex; gap:8px; margin-bottom:9px; }
+    width:15px; height:15px; border-radius:50%; cursor:pointer;
+    background:radial-gradient(circle at 35% 30%, #fff, #eef0f4); border:1px solid rgba(0,0,0,.22);
+    box-shadow:0 1px 3px rgba(0,0,0,.28); }
+  input[type=range]::-moz-range-thumb{ width:14px; height:14px; border-radius:50%; cursor:pointer;
+    background:#fff; border:1px solid rgba(0,0,0,.22); box-shadow:0 1px 3px rgba(0,0,0,.28); }
+  .chk{ display:flex; align-items:center; gap:7px; margin-bottom:10px; cursor:pointer; }
+  .chk input{ width:14px; height:14px; accent-color:#1a8f4c; }
+  select.sel{ width:100%; font:inherit; font-size:11px; padding:6px 8px; cursor:pointer;
+    border:1px solid rgba(255,255,255,.6); border-radius:9px; color:#111; text-transform:capitalize;
+    background:rgba(255,255,255,.5); -webkit-backdrop-filter:blur(8px); backdrop-filter:blur(8px); }
+  .cols{ display:flex; gap:8px; margin-bottom:10px; }
   .cols label{ flex:1; display:flex; flex-direction:column; gap:4px; }
-  .cols input[type=color]{ width:100%; height:26px; border:1px solid rgba(0,0,0,.15);
-    border-radius:6px; background:none; cursor:pointer; padding:0; }
+  .cols input[type=color]{ width:100%; height:26px; border:1px solid rgba(255,255,255,.5);
+    border-radius:9px; background:none; cursor:pointer; padding:0; }
   .btns{ display:flex; gap:7px; flex-wrap:wrap; }
   .btns button{ flex:1; min-width:70px; font:inherit; font-size:10.5px; letter-spacing:.04em;
-    padding:7px 6px; border:1px solid #111; border-radius:7px; background:#111; color:#fff;
-    cursor:pointer; }
-  .btns button.ghost{ background:none; color:#111; }
-  .btns button.on{ background:#1a8f4c; border-color:#1a8f4c; color:#fff; }
-  .btns button:active{ transform:translateY(1px); }
+    padding:8px 6px; border-radius:11px; cursor:pointer; color:#fff;
+    border:1px solid rgba(255,255,255,.45); background:rgba(22,22,28,.82);
+    -webkit-backdrop-filter:blur(6px); backdrop-filter:blur(6px);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 3px 10px rgba(0,0,0,.16); transition:transform .12s ease; }
+  .btns button.ghost{ color:#111; background:rgba(255,255,255,.44);
+    border:1px solid rgba(255,255,255,.6); box-shadow:inset 0 1px 0 rgba(255,255,255,.7), 0 3px 10px rgba(0,0,0,.08); }
+  .btns button.on{ color:#fff; background:rgba(26,143,76,.9); border-color:rgba(255,255,255,.5);
+    box-shadow:inset 0 1px 0 rgba(255,255,255,.3), 0 3px 12px rgba(26,143,76,.3); }
+  .btns button:active{ transform:translateY(1px) scale(.98); }
 </style>
 </head>
 <body>
   <div id="stage">
     <canvas id="c"></canvas>
     <button id="galToggle" title="Hide postcards">‹</button>
-    <div id="gallery"></div>
-    <div class="hud">dithered artifacts · <b id="shape">—</b> · <span id="count">0</span> spores</div>
+    <div id="gallery"><div id="galGoo"></div><div id="galCards"></div></div>
+    <button id="trash" title="Drag a shape here to delete · click to clear all">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/><path d="M10 11v6M14 11v6"/></svg>
+    </button>
+
+    <!-- liquid "goo" filter: blur then alpha-threshold makes adjacent blobs fuse -->
+    <svg width="0" height="0" style="position:absolute" aria-hidden="true"><defs>
+      <filter id="goo">
+        <feGaussianBlur in="SourceGraphic" stdDeviation="6" result="blur" id="gooBlur"/>
+        <feColorMatrix in="blur" mode="matrix" values="1 0 0 0 0  0 1 0 0 0  0 0 1 0 0  0 0 0 20 -9" result="goo"/>
+        <feComposite in="SourceGraphic" in2="goo" operator="atop"/>
+      </filter>
+    </defs></svg>
 
     <div id="panel">
       <div class="head" id="phead"><h1>Controls</h1><span class="tg" id="ptg">–</span></div>
@@ -96,8 +126,6 @@
 (() => {
   const view = document.getElementById('c');
   const vctx = view.getContext('2d');
-  const shapeEl = document.getElementById('shape');
-  const countEl = document.getElementById('count');
   const TAU = Math.PI*2;
   const rnd=(a,b)=>a+Math.random()*(b-a);
   const rint=(a,b)=>Math.floor(rnd(a,b+1));
@@ -110,13 +138,14 @@
     ditherScale: 1,     // bayer pattern zoom
     radius: 3,          // spore disk radius (cells)
     pixelStyle: 'square', // shape of each dither pixel
+    liquid: 6,          // goo merge strength for the postcard stack (0 = crisp)
     // population / motion
     maxP: 1500,
     growth: 3.2,        // multiply speed
     settle: 0.0025,     // migration smoothing (lower = snappier)
     // shape
     shapeMs: 6000,
-    autoCycle: true,
+    autoCycle: false,   // no constant regeneration — generate on demand
     fillFrac: 0.6,      // fraction of cycle spent filling
     harmMin: 2,
     harmMax: 5,
@@ -159,6 +188,7 @@
     rF = new Float32Array(W*H); aF = new Float32Array(W*H);
     buildTile();
     reproject();
+    if(typeof sizeStampCanvas==='function') sizeStampCanvas();  // keep the paint layer in sync
   }
 
   // ---------- pixel-shape tiles ----------
@@ -285,13 +315,14 @@
   function refield(){ if(curFn){ buildField(curFn); if(parts.length>cfg.maxP) parts.length=cfg.maxP; reassignAll(); } }
 
   function newShape(){
-    if(hasArtifact) capturePostcard();      // snapshot the outgoing artifact
-    shapeEl.textContent='form '+(++formN);
+    if(hasArtifact) bakeField();             // commit the current shape as a movable object
+    formN++;
     curFn=genShape();
     if(cfg.randomColors) randomTones();
     buildField(curFn);
+    if(!parts.length) parts=[makePart(0,0)];   // reseed if the field was emptied (grabbed away)
     reassignAll();
-    hasArtifact=true;
+    hasArtifact=true; filledSnapped=false;
   }
   let formN=0;
 
@@ -299,29 +330,29 @@
 
   // ---------- loop ----------
   let last=performance.now(), shapeClock=0;
+  function tick(dt){
+    shapeClock += dt*1000;
+    if(cfg.autoCycle && shapeClock>cfg.shapeMs){ shapeClock=0; newShape(); }
+
+    const fill=Math.min(1, shapeClock/(cfg.shapeMs*cfg.fillFrac));
+    targetCount=Math.max(1, Math.round(1+fill*fill*(cfg.maxP-1)));
+
+    spawnAcc.v += (targetCount-parts.length)*dt*cfg.growth;
+    while(spawnAcc.v>=1 && parts.length>0 && parts.length<targetCount && parts.length<cfg.maxP){
+      spawnAcc.v-=1;
+      const par=parts[(Math.random()*parts.length)|0];
+      const a=Math.random()*TAU,d=0.02+Math.random()*0.04;
+      const ch=makePart(par.x+Math.cos(a)*d, par.y+Math.sin(a)*d);
+      parts.push(ch); assignOne(ch, parts.length-1);
+    }
+    while(parts.length>targetCount+2 && parts.length>1) parts.pop();
+
+    step(dt);
+  }
   function frame(now){
     const dt=Math.min(50,now-last)/1000; last=now;
-    if(!cfg.paused){
-      shapeClock += dt*1000;
-      if(cfg.autoCycle && shapeClock>cfg.shapeMs){ shapeClock=0; newShape(); }
-
-      const fill=Math.min(1, shapeClock/(cfg.shapeMs*cfg.fillFrac));
-      targetCount=Math.max(1, Math.round(1+fill*fill*(cfg.maxP-1)));
-
-      spawnAcc.v += (targetCount-parts.length)*dt*cfg.growth;
-      while(spawnAcc.v>=1 && parts.length<targetCount && parts.length<cfg.maxP){
-        spawnAcc.v-=1;
-        const par=parts[(Math.random()*parts.length)|0];
-        const a=Math.random()*TAU,d=0.02+Math.random()*0.04;
-        const ch=makePart(par.x+Math.cos(a)*d, par.y+Math.sin(a)*d);
-        parts.push(ch); assignOne(ch, parts.length-1);
-      }
-      while(parts.length>targetCount+2 && parts.length>1) parts.pop();
-
-      step(dt);
-    }
+    if(!cfg.paused) tick(dt);
     render();
-    countEl.textContent=parts.length;
     requestAnimationFrame(frame);
   }
 
@@ -380,9 +411,16 @@
       layerCtx.fillStyle=curPattern;
       layerCtx.fillRect(0,0,DW,DH);
     }
-    // paint background then the shaped dither layer
+    // once a fresh shape has filled, snapshot it as the latest-shape thumbnail
+    if(hasArtifact && !filledSnapped && parts.length>0 && parts.length>=cfg.maxP*0.97){
+      const c=cropLayer(); if(c) captureThumb(c.canvas); filledSnapped=true;
+    }
+    // compose: background, placed shapes, the live (newest) shape on top, then the drop preview
     vctx.fillStyle=cfg.bg; vctx.fillRect(0,0,DW,DH);
+    vctx.imageSmoothingEnabled=false;
+    for(const o of objects){ const w=o.nw*DW, h=w*o.ar; vctx.drawImage(o.img, o.nx*DW-w/2, o.ny*DH-h/2, w, h); }
     vctx.drawImage(layerCanvas,0,0);
+    if(preview) vctx.drawImage(preview.img, preview.x, preview.y, preview.w, preview.h);
   }
 
   // stamp a poly-line/loop into the pixel buffer, respecting the low-res grid
@@ -426,7 +464,7 @@
     strokeX=[]; strokeY=[];
   }
   function fillFromStroke(xs,ys){
-    if(hasArtifact) capturePostcard();      // snapshot the outgoing artifact
+    if(hasArtifact) bakeField();            // commit the current shape as a movable object
     const N=xs.length; let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9,cx=0,cy=0;
     for(let i=0;i<N;i++){ cx+=xs[i]; cy+=ys[i];
       if(xs[i]<minx)minx=xs[i]; if(xs[i]>maxx)maxx=xs[i];
@@ -442,8 +480,7 @@
     if(out.length===0){ for(let i=0;i<N;i++) out.push([px[i],py[i],1]); }
     FIELD=out; BX=px; BY=py; curFn=null;
     if(cfg.randomColors) randomTones();
-    parts=[makePart(cx,cy)]; targetCount=1; shapeClock=0;   // regrow inside the drawing
-    shapeEl.textContent='drawn';
+    parts=[makePart(cx,cy)]; targetCount=1; shapeClock=0; hasArtifact=true; filledSnapped=false; // regrow inside the drawing
   }
   view.addEventListener('pointerdown', e=>{
     if(!cfg.draw) return;
@@ -458,36 +495,107 @@
   // Snapshot only when an artifact finishes (not per frame): one downscale + one
   // WebP blob, reused for both the preview thumb and the download. Ring buffer of 10.
   const gallery=document.getElementById('gallery');
+  const galGoo=document.getElementById('galGoo');
+  const galCards=document.getElementById('galCards');
   const galToggle=document.getElementById('galToggle');
+  const gooBlur=document.getElementById('gooBlur');
+  function updateGoo(){ gooBlur.setAttribute('stdDeviation', cfg.liquid); }
+  updateGoo();
   galToggle.onclick=()=>{
     const hidden=gallery.classList.toggle('hidden');
     galToggle.textContent = hidden?'›':'‹';
     galToggle.title = hidden?'Show postcards':'Hide postcards';
   };
-  const postcards=[]; const MAX_CARDS=10; let hasArtifact=false;
-  const DL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>';
-  function capturePostcard(){
-    if(!DW) return;
-    // high-fidelity: capture at native display res (long-edge capped), lossless PNG
-    const CAP=1600, s=Math.min(1, CAP/Math.max(DW,DH));
-    const tw=Math.max(1,Math.round(DW*s)), th=Math.max(1,Math.round(DH*s));
-    let src=view;
-    if(s<1){ const t=document.createElement('canvas'); t.width=tw; t.height=th;
-      const c=t.getContext('2d'); c.imageSmoothingEnabled=false; c.drawImage(view,0,0,tw,th); src=t; }
-    const id=formN;
-    src.toBlob(b=>{ if(b) addPostcard(URL.createObjectURL(b), id); }, 'image/png');
+  let hasArtifact=false, filledSnapped=false;
+
+  // ---------- movable shape objects on the single canvas ----------
+  const DRAG_SLOP=6;
+  const objects=[];            // placed shapes: {img, nx, ny, nw, ar}  (normalized to canvas)
+  let preview=null;            // {img, x, y, w, h} live while dragging the thumbnail in
+  let lastBaked=null;          // canvas of the latest generated shape (thumbnail + copies)
+
+  function sizeStampCanvas(){}                 // objects draw live each frame; nothing to resize
+  const blockClick=e=>{ e.preventDefault(); e.stopPropagation(); };
+  const clientToCanvas=(x,y)=>{ const r=view.getBoundingClientRect();
+    return [ (x-r.left)/r.width*DW, (y-r.top)/r.height*DH ]; };
+  const overCanvas=(x,y)=>{ const r=view.getBoundingClientRect();
+    return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom; };
+
+  // crop the live field (layerCanvas) down to its shape; returns image + centre in px
+  function cropLayer(){
+    let dat; try{ dat=layerCtx.getImageData(0,0,DW,DH); }catch(_){ return null; }
+    const d=dat.data; let minx=DW,miny=DH,maxx=-1,maxy=-1;
+    for(let y=0;y<DH;y++){ for(let x=0;x<DW;x++){ if(d[((y*DW+x)<<2)+3]>8){
+      if(x<minx)minx=x; if(x>maxx)maxx=x; if(y<miny)miny=y; if(y>maxy)maxy=y; } } }
+    if(maxx<minx) return null;
+    const w=maxx-minx+1, h=maxy-miny+1;
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    cv.getContext('2d').drawImage(layerCanvas, minx,miny,w,h, 0,0,w,h);
+    return { canvas:cv, cx:minx+w/2, cy:miny+h/2, w, h };
   }
-  function addPostcard(url,id){
-    postcards.push({url});
-    const a=document.createElement('a');
-    a.className='pc'; a.href=url; a.download=`dither-postcard-${id}.png`; a.title='Download';
-    a.innerHTML=`<img src="${url}" alt="artifact ${id}" loading="lazy"><span class="dl">${DL_ICON}</span>`;
-    gallery.insertBefore(a, gallery.firstChild);                 // newest on top
-    while(postcards.length>MAX_CARDS){                            // evict oldest, free memory
-      URL.revokeObjectURL(postcards.shift().url);
-      if(gallery.lastChild) gallery.removeChild(gallery.lastChild);
+  // bake the current live shape into a movable object + refresh the thumbnail
+  function bakeField(){
+    const c=cropLayer(); if(!c) return null;
+    const o={ img:c.canvas, nx:c.cx/DW, ny:c.cy/DH, nw:c.w/DW, ar:c.h/c.w };
+    objects.push(o); captureThumb(c.canvas);
+    return o;
+  }
+
+  // drag any placed shape — or grab the live shape — to move it (when not drawing)
+  view.addEventListener('pointerdown', e=>{
+    if(cfg.draw || e.button!==0) return;
+    const [px,py]=clientToCanvas(e.clientX,e.clientY);
+    let target=null, gx=0, gy=0;
+    for(let i=objects.length-1;i>=0;i--){ const o=objects[i], w=o.nw*DW, h=w*o.ar;
+      const L=o.nx*DW-w/2, T=o.ny*DH-h/2;
+      if(px>=L&&px<=L+w&&py>=T&&py<=T+h){ objects.splice(i,1); objects.push(o);  // bring to front
+        target=o; gx=px-o.nx*DW; gy=py-o.ny*DH; break; } }
+    if(!target && parts.length){                              // grab the live shape -> bake & move
+      let a=0; try{ a=layerCtx.getImageData(Math.max(0,Math.min(DW-1,px|0)),Math.max(0,Math.min(DH-1,py|0)),1,1).data[3]; }catch(_){}
+      if(a>8){ const o=bakeField(); if(o){ target=o; gx=px-o.nx*DW; gy=py-o.ny*DH;
+        parts=[]; targetCount=0; } }                          // the live field is now a movable object
     }
-    galToggle.style.display='flex';                              // reveal collapse handle
+    if(!target) return;
+    e.preventDefault();
+    const mv=e2=>{ const [mx,my]=clientToCanvas(e2.clientX,e2.clientY);
+      target.nx=(mx-gx)/DW; target.ny=(my-gy)/DH; };
+    const up=()=>{ window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up); };
+    window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
+  });
+
+  // drag the thumbnail onto the canvas to drop another movable copy of the latest shape
+  function thumbDragOut(anchor, ev){
+    if(ev.button!==0 || !lastBaked) return;
+    const src=lastBaked, ar=src.height/src.width, nw=src.width/DW;
+    const start={x:ev.clientX, y:ev.clientY}; let placing=false;
+    const mv=e2=>{
+      if(!placing){ if(Math.hypot(e2.clientX-start.x, e2.clientY-start.y) < DRAG_SLOP) return;
+        placing=true; anchor.addEventListener('click', blockClick, {capture:true, once:true}); }
+      if(overCanvas(e2.clientX,e2.clientY)){ const [px,py]=clientToCanvas(e2.clientX,e2.clientY);
+        const w=nw*DW, h=w*ar; preview={ img:src, x:px-w/2, y:py-h/2, w, h }; } else preview=null;
+    };
+    const up=e2=>{ window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up);
+      if(placing && overCanvas(e2.clientX,e2.clientY)){ const [px,py]=clientToCanvas(e2.clientX,e2.clientY);
+        objects.push({ img:src, nx:px/DW, ny:py/DH, nw, ar }); }
+      preview=null; };
+    window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
+  }
+  function undoStamp(){ if(objects.length) objects.pop(); }
+  function clearStamps(){ objects.length=0; }
+  const DL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>';
+  // the single thumbnail always shows the latest generated shape
+  function captureThumb(cv){ lastBaked=cv; setThumbnail(cv.toDataURL('image/png')); }
+  function setThumbnail(url){
+    galCards.innerHTML=''; galGoo.innerHTML='';
+    const a=document.createElement('a');
+    a.className='pc'; a.href=url; a.download=`dither-shape-${formN}.png`; a.title='Drag onto canvas · click to download';
+    a.draggable=false;
+    a.innerHTML=`<img src="${url}" alt="latest shape" draggable="false"><span class="dl">${DL_ICON}</span>`;
+    a.addEventListener('dragstart', e=>e.preventDefault());
+    a.addEventListener('pointerdown', e=>thumbDragOut(a, e));
+    const blob=document.createElement('div'); blob.className='blob';   // gooey glass backing
+    galCards.appendChild(a); galGoo.appendChild(blob);
+    galToggle.style.display='flex';
   }
 
   // ---------- export ----------
@@ -520,6 +628,9 @@
       ['RENDER',[
         ['targetW','Resolution',80,480,10, null,null,0, resize],
         ['ditherScale','Dither scale',1,5,1, null,null,0],
+      ]],
+      ['LIQUID',[
+        ['liquid','Postcard merge',0,14,0.5, null,null,1, updateGoo],
       ]],
       ['TONES',[
         ['mixLo','Mix floor',0,0.5,0.02],
@@ -582,15 +693,23 @@
     const bp=b.querySelector('#bPause');
     bp.onclick=()=>{ cfg.paused=!cfg.paused; bp.textContent=cfg.paused?'Play':'Pause'; };
 
+    // placed shapes (movable objects on the canvas)
+    const gd=document.createElement('div'); gd.className='grp';
+    gd.innerHTML='<div class="t">Placed shapes</div>';
+    const bdd=document.createElement('div'); bdd.className='btns';
+    bdd.innerHTML=`<button id="bUndo" class="ghost">Undo</button>
+                   <button id="bClear" class="ghost">Clear</button>`;
+    gd.appendChild(bdd); body.appendChild(gd);
+    bdd.querySelector('#bUndo').onclick=undoStamp;
+    bdd.querySelector('#bClear').onclick=clearStamps;
+
     // export
     const ge=document.createElement('div'); ge.className='grp';
     ge.innerHTML='<div class="t">Export</div>';
     const be=document.createElement('div'); be.className='btns';
-    be.innerHTML=`<button id="bPng">Download PNG</button>
-                  <button id="bCard" class="ghost">Save postcard</button>`;
+    be.innerHTML=`<button id="bPng">Download PNG</button>`;
     ge.appendChild(be); body.appendChild(ge);
     be.querySelector('#bPng').onclick=downloadPNG;
-    be.querySelector('#bCard').onclick=capturePostcard;
 
     rgbA=hex2rgb(cfg.toneA); rgbB=hex2rgb(cfg.toneB);
   }

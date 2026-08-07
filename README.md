@@ -2,10 +2,11 @@
 
 An interactive generative-art toy. A single colored "spore" divides and multiplies
 until it swarms into a random organic shape, which is rendered as a crisp **two-tone
-ordered-dither** field with a complementary outline. New forms grow endlessly, or you
-can **draw your own** and watch it fill.
+ordered-dither** field with a complementary outline. Generate new forms on demand, or
+**draw your own** and watch it fill — then drag past artifacts back onto the canvas to
+compose them like paint.
 
-Everything is one self-contained `dither_artifacts.html` — no build step, no
+Everything is one self-contained `index.html` — no build step, no
 dependencies. Just open it in a browser.
 
 | | |
@@ -48,6 +49,9 @@ cross, diamond, and so on.
   down the left edge; click any to download it as a full-resolution PNG. The strip
   collapses out of the way.
 - **Full control panel** — live knobs for every parameter (below).
+- **Liquid-glass UI** — frosted, translucent panel and controls; the postcard stack
+  uses an SVG goo filter so adjacent cards fuse where they meet, tunable from crisp
+  joints to soft gooey blobs via the **Postcard merge** knob.
 - **PNG export** of the current frame.
 
 ## Controls
@@ -59,41 +63,50 @@ A collapsible panel (top-right) exposes everything live:
 | **Shape** | cycle length · fill fraction · harmonics min/max · complexity |
 | **Population** | max spores · multiply speed · motion smoothing · spore size |
 | **Render** | resolution (dither pixel size) · dither scale · **pixel style** |
+| **Liquid** | thumbnail merge (crisp → gooey glass) |
 | **Tones** | mix floor / ceiling · boundary fuzz · outline width |
 | **Colors** | random-colors toggle · Tone A / Tone B / background / outline (Tone C) |
 | **Playback** | auto-cycle · **Draw mode** · New shape · Shuffle colors · Pause |
-| **Export** | Download PNG · Save postcard |
+| **Placed shapes** | Undo · Clear |
+| **Export** | Download PNG |
 
 ### Draw mode
 
 Click **✎ Draw mode**, then drag a loop on the canvas. On release the stroke becomes
 the outline and the spores regrow to fill inside it. Draw as many as you like — each
-replaces the last. Toggle it off to return to auto-cycling.
+replaces the last. Toggle it off to go back to moving shapes.
 
-### Postcards
+### Shapes on the canvas
 
-Snapshots are taken only when an artifact *finishes* (never every frame): one downscale
-and one PNG blob, reused for both the thumbnail and its download link, held in a
-10-item ring buffer so memory stays flat. Hover a card for the download button, or use
-the `‹` handle to hide the strip.
+Everything on the canvas is a **movable shape**. Generate one and it grows on top of
+everything; **drag any shape to move it** (grabbing the freshly generated one drops it
+into place as an object). **New shape** commits the current shape and grows a new one
+above it, so shapes accumulate into a composition. **Undo** / **Clear** manage the placed
+shapes.
+
+The gallery holds a **single thumbnail of the latest generated shape**. Drag it onto the
+canvas to drop another movable copy; a plain click downloads it.
+
+Auto-cycling is **off by default** — nothing regenerates on its own. Use **New shape**,
+**Draw mode**, or re-enable **Auto-cycle**.
 
 ## Running it
 
 No install. Either:
 
-- **Double-click** `dither_artifacts.html`, or
+- **Double-click** `index.html`, or
 - serve the folder and open it:
 
 ```bash
 python -m http.server
-# then visit http://localhost:8000/dither_artifacts.html
+# then visit http://localhost:8000/
 ```
 
 ## Project structure
 
 ```
 ditherme/
-├── dither_artifacts.html   # the whole thing — markup, styles, and canvas engine
+├── index.html              # the whole thing — markup, styles, and canvas engine
 ├── README.md
 └── screenshots/            # images used in this README
 ```
