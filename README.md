@@ -79,10 +79,13 @@ replaces the last. Toggle it off to go back to moving shapes.
 ### Shapes on the canvas
 
 Everything on the canvas is a **movable shape**. Generate one and it grows on top of
-everything; **drag any shape to move it** (grabbing the freshly generated one drops it
-into place as an object). **New shape** commits the current shape and grows a new one
-above it, so shapes accumulate into a composition. **Undo** / **Clear** manage the placed
-shapes.
+everything; **drag any shape to move it** — grabbing is pixel-accurate, so you can only
+pick a shape up by its actual filled body, not the empty space around it. **New shape**
+commits the current shape and grows a new one above it, so shapes accumulate into a
+composition. **Undo** / **Clear** manage the placed shapes.
+
+Drop a shape on the **trash can** (bottom-left) to delete it — it lights up as you drag
+over it. Clicking the trash clears everything.
 
 The gallery holds a **single thumbnail of the latest generated shape**. Drag it onto the
 canvas to drop another movable copy; a plain click downloads it.
