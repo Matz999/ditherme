@@ -6,8 +6,9 @@ ordered-dither** field with a complementary outline. Generate new forms on deman
 **draw your own** and watch it fill — then drag past artifacts back onto the canvas to
 compose them like paint.
 
-Everything is one self-contained `index.html` — no build step, no
-dependencies. Just open it in a browser.
+It's plain HTML/JS — no build step, no dependencies. `index.html` is a landing page
+(a dithered rainbow that fills the screen) with a button into the editor; the editor
+itself is the self-contained `editor.html`.
 
 | | |
 |---|---|
@@ -84,11 +85,14 @@ pick a shape up by its actual filled body, not the empty space around it. **New 
 commits the current shape and grows a new one above it, so shapes accumulate into a
 composition. **Undo** / **Clear** manage the placed shapes.
 
-Drop a shape on the **trash can** (bottom-left) to delete it — it lights up as you drag
-over it. Clicking the trash clears everything.
+Drop a shape on the **trash can** (bottom-left) to delete it — the shape shrinks as it
+nears the can and the can lights up; release elsewhere and it springs back to full size.
+Clicking the trash clears everything.
 
-The gallery holds a **single thumbnail of the latest generated shape**. Drag it onto the
-canvas to drop another movable copy; a plain click downloads it.
+Each generated shape adds a **thumbnail of that shape** to the gallery (up to the last
+10, newest on top). Drag any thumbnail onto the canvas to drop a movable copy of *that*
+shape — it **pops out** of the thumbnail at thumbnail size and springs up to full size.
+A plain click downloads it.
 
 Auto-cycling is **off by default** — nothing regenerates on its own. Use **New shape**,
 **Draw mode**, or re-enable **Auto-cycle**.
@@ -109,7 +113,8 @@ python -m http.server
 
 ```
 ditherme/
-├── index.html              # the whole thing — markup, styles, and canvas engine
+├── index.html              # landing page (dithered rainbow + "Open the editor")
+├── editor.html             # the editor — markup, styles, and canvas engine
 ├── README.md
 └── screenshots/            # images used in this README
 ```
