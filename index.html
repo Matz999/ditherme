@@ -19,17 +19,10 @@
     align-items:center; justify-content:center; gap:34px; text-align:center; padding:24px;
     /* soft glow so the logo stays legible over the rainbow */
     background:radial-gradient(closest-side at 50% 46%, rgba(255,255,255,.7), rgba(255,255,255,0) 60%); }
-  .logo{ display:flex; align-items:center; gap:.18em; opacity:0; transform:translateY(14px) scale(.98);
+  .logo{ display:flex; align-items:center; opacity:0; transform:translateY(14px) scale(.98);
     animation:rise .9s .15s cubic-bezier(.22,1,.36,1) forwards; }
-  .logo .mark{ width:.82em; height:.82em; border-radius:.18em; flex:none;
-    background:
-      conic-gradient(from 210deg, #ff2e5b, #ff9e2c, #ffe64d, #35d07f, #2ea6ff, #9b5cff, #ff2e5b);
-    box-shadow:0 8px 30px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.5); }
   .logo h1{ font-size:clamp(46px, 12vw, 132px); font-weight:800; letter-spacing:-.03em;
-    line-height:.9; color:var(--ink); text-shadow:0 2px 30px rgba(255,255,255,.55); }
-  .tag{ font-size:clamp(12px,2.6vw,15px); letter-spacing:.34em; text-transform:uppercase;
-    font-weight:600; opacity:0; color:#33333f;
-    animation:rise .9s .32s cubic-bezier(.22,1,.36,1) forwards; }
+    line-height:.9; color:var(--ink); }
 
   .enter{ position:relative; font:inherit; font-size:clamp(15px,2.4vw,18px); font-weight:700;
     letter-spacing:.02em; color:var(--ink); text-decoration:none; cursor:pointer;
@@ -54,8 +47,7 @@
   <div id="stage">
     <canvas id="bg"></canvas>
     <div class="center">
-      <div class="logo"><span class="mark"></span><h1>ditherme</h1></div>
-      <div class="tag">dithered artifact studio</div>
+      <div class="logo"><h1>ditherme</h1></div>
       <a class="enter" href="editor.html">Open the editor <span class="arrow">→</span></a>
     </div>
   </div>
@@ -88,7 +80,7 @@
     for(let y=0;y<8;y++)for(let x=0;x<8;x++)f[y*8+x]=(m[y][x]+0.5)/64;
     return f;
   })();
-  const LEVELS = 5, SPREAD = 1/(LEVELS-1);
+  const HUE_BANDS = 9;      // discrete rainbow colors (artifact-style palette)
 
   function hsv(h,s,v){
     h=(h%1+1)%1; const i=Math.floor(h*6),f=h*6-i;
@@ -96,13 +88,12 @@
     switch(i%6){ case 0:return[v,t,p]; case 1:return[q,v,p]; case 2:return[p,v,t];
       case 3:return[p,q,v]; case 4:return[t,p,v]; default:return[v,p,q]; }
   }
-  const qd=(val,thr)=>{ let x=val+thr*SPREAD; x=Math.round(x*(LEVELS-1))/(LEVELS-1);
-    return (x<0?0:x>1?1:x)*255|0; };
   const smooth=t=>t<=0?0:t>=1?1:t*t*(3-2*t);
 
-  // ---- reveal: the rainbow grows from the centre to fill the screen ----
+  // ---- reveal: sweeps in from the upper-left corner as a diagonal line to the bottom ----
   const REVEAL_MS = 7000;   // slow fill
-  const EDGE = 0.16;        // width of the dithered reveal front
+  const EDGE = 0.14;        // width of the dithered reveal front
+  const AX = 0.7, AY = 1.0, ASUM = AX+AY;   // diagonal axis, biased toward the bottom
   let start = performance.now();
 
   function frame(now){
@@ -110,17 +101,20 @@
     const coverage = smooth(Math.min(1, (now-start)/REVEAL_MS));
     const front = coverage*(1+EDGE);          // reaches 1+EDGE -> full screen
     const d = img.data;
-    const cx=W*0.5, cy=H*0.5, invMax=1/Math.hypot(W*0.5, H*0.5);
     for(let y=0;y<H;y++){
       const by=(y%BN)*BN, ny=y/H;
       for(let x=0;x<W;x++){
         const o=(y*W+x)<<2, thr=BAYER[by+(x%BN)];
-        const nd=Math.hypot(x-cx, y-cy)*invMax;         // 0 centre -> 1 corner
-        const edge=(front-nd)/EDGE;                     // dithered growing front
+        const coord=(x/W*AX + ny*AY)/ASUM;              // 0 top-left -> 1 bottom-right
+        const edge=(front-coord)/EDGE;                  // dithered growing front
         if(edge > thr){
-          const hue=(x/W*0.62 + ny*0.26 + time*0.035) % 1;   // drifting rainbow
-          const c=hsv(hue, 0.95, 1);
-          d[o]=qd(c[0],thr); d[o+1]=qd(c[1],thr); d[o+2]=qd(c[2],thr); d[o+3]=255;
+          // artifact-style: discrete saturated hue bands, Bayer-stippled at the seams
+          const hb=((( x/W*0.72 + ny*0.42 + time*0.04 )%1)+1)%1 * HUE_BANDS;
+          const bi=Math.floor(hb), frac=hb-bi;
+          const hthr=BAYER[((y+2)%BN)*BN + (x+4)%BN];   // decorrelated dither for the hue seam
+          const band=((hthr<frac ? bi+1 : bi)%HUE_BANDS)/HUE_BANDS;
+          const c=hsv(band, 1, 1);
+          d[o]=c[0]*255|0; d[o+1]=c[1]*255|0; d[o+2]=c[2]*255|0; d[o+3]=255;
         } else { d[o]=255; d[o+1]=255; d[o+2]=255; d[o+3]=255; }  // white until revealed
       }
     }
