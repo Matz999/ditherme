@@ -155,6 +155,7 @@
     radius: 3,          // spore disk radius (cells)
     pixelStyle: 'square', // shape of each dither pixel
     liquid: 6,          // goo merge strength for the postcard stack (0 = crisp)
+    importLevels: 4,    // Bayer quantization levels for imported images
     // population / motion
     maxP: 1500,
     growth: 3.2,        // multiply speed
@@ -178,8 +179,8 @@
     outline: false,
     toneC: '#111111',
     outlineW: 2,
-    // draw mode
-    draw: false,
+    // canvas tool: 'drag' (move/generate) | 'fill' (draw loop -> dithered fill) | 'pen' (freehand line)
+    tool: 'drag',
     // state
     paused: false
   };
@@ -413,7 +414,8 @@
       }
     }
     if(cfg.outline && BX) drawPath(d, BX, BY, true, hex2rgb(cfg.toneC), cfg.outlineW);
-    if(cfg.draw && drawing && strokeX.length>1)
+    // live stroke preview (fill loop / pen line), stamped at the field's resolution
+    if(isDrawTool() && drawing && strokeX.length>1)
       drawPath(d, strokeX, strokeY, false, hex2rgb(cfg.toneC), Math.max(2,cfg.outlineW));
     bufCtx.putImageData(img,0,0);
 
@@ -434,7 +436,8 @@
     // compose: background, placed shapes, the live (newest) shape on top, then the drop preview
     vctx.fillStyle=cfg.bg; vctx.fillRect(0,0,DW,DH);
     vctx.imageSmoothingEnabled=false;
-    for(const o of objects){ const w=o.nw*DW*(o.scale||1), h=w*o.ar; vctx.drawImage(o.img, o.nx*DW-w/2, o.ny*DH-h/2, w, h); }
+    for(const o of objects){ const w=o.ww*cam.zoom*(o.scale||1), h=w*o.ar;
+      vctx.drawImage(o.img, W2Sx(o.wx)-w/2, W2Sy(o.wy)-h/2, w, h); }
     vctx.drawImage(layerCanvas,0,0);
     if(preview){
       const t=Math.min(1,(performance.now()-preview.birth)/POP_MS);
@@ -467,8 +470,9 @@
     }
   }
 
-  // ---------- draw mode ----------
+  // ---------- draw tools (fill / pen) ----------
   let drawing=false, strokeX=[], strokeY=[];
+  const isDrawTool=()=>cfg.tool==='fill'||cfg.tool==='pen';
   function screenToNorm(clientX, clientY){
     const rect=view.getBoundingClientRect();
     const cx=(clientX-rect.left)/rect.width*W;
@@ -481,8 +485,32 @@
     if(n===0 || Math.hypot(nx-strokeX[n-1],ny-strokeY[n-1])>0.01){ strokeX.push(nx); strokeY.push(ny); }
   }
   function finishStroke(){
-    if(strokeX.length>=3) fillFromStroke(strokeX.slice(), strokeY.slice());
+    if(cfg.tool==='pen'){ if(strokeX.length>=1) penFromStroke(strokeX.slice(), strokeY.slice()); }
+    else if(strokeX.length>=3){ fillFromStroke(strokeX.slice(), strokeY.slice()); }
     strokeX=[]; strokeY=[];
+  }
+  // pen: bake the freehand stroke into a movable object, stamped at the field's (cell) resolution
+  // so it stays chunky/dithered like everything else, then drawn upscaled nearest-neighbour.
+  function penFromStroke(xs,ys){
+    const N=xs.length, cxA=new Array(N), cyA=new Array(N);
+    let minx=1e9,maxx=-1e9,miny=1e9,maxy=-1e9;
+    for(let i=0;i<N;i++){ const X=toCellX(xs[i]), Y=toCellY(ys[i]); cxA[i]=X; cyA[i]=Y;
+      if(X<minx)minx=X; if(X>maxx)maxx=X; if(Y<miny)miny=Y; if(Y>maxy)maxy=Y; }
+    const rw=Math.max(0,(Math.max(2,cfg.outlineW)-1)/2), r=Math.ceil(rw)+1;
+    minx=Math.floor(minx)-r; miny=Math.floor(miny)-r; maxx=Math.ceil(maxx)+r; maxy=Math.ceil(maxy)+r;
+    const w=Math.max(1,maxx-minx), h=Math.max(1,maxy-miny);
+    const cv=document.createElement('canvas'); cv.width=w; cv.height=h;
+    const cc=cv.getContext('2d'), im=cc.createImageData(w,h), d=im.data;
+    const rgb=hex2rgb(cfg.toneC), cr=rgb[0],cg=rgb[1],cb=rgb[2];
+    const stamp=(px,py)=>{ for(let sy=-r;sy<=r;sy++)for(let sx=-r;sx<=r;sx++){
+      if(sx*sx+sy*sy>rw*rw+0.5) continue; const x=px-minx+sx, y=py-miny+sy;
+      if(x<0||y<0||x>=w||y>=h) continue; const o=(y*w+x)<<2; d[o]=cr;d[o+1]=cg;d[o+2]=cb;d[o+3]=255; } };
+    if(N===1) stamp(Math.round(cxA[0]),Math.round(cyA[0]));
+    for(let i=0;i<N-1;i++){ const x0=cxA[i],y0=cyA[i],x1=cxA[i+1],y1=cyA[i+1];
+      const steps=Math.max(1,Math.ceil(Math.hypot(x1-x0,y1-y0)));
+      for(let s=0;s<=steps;s++){ const t=s/steps; stamp(Math.round(x0+(x1-x0)*t),Math.round(y0+(y1-y0)*t)); } }
+    cc.putImageData(im,0,0);
+    objects.push({ img:cv, wx:S2Wx((minx+w/2)*SCALE), wy:S2Wy((miny+h/2)*SCALE), ww:(w*SCALE)/cam.zoom, ar:h/w });
   }
   function fillFromStroke(xs,ys){
     if(hasArtifact) bakeField();            // commit the current shape as a movable object
@@ -501,16 +529,17 @@
     if(out.length===0){ for(let i=0;i<N;i++) out.push([px[i],py[i],1]); }
     FIELD=out; BX=px; BY=py; curFn=null;
     if(cfg.randomColors) randomTones();
-    parts=[makePart(cx,cy)]; targetCount=1; shapeClock=0; hasArtifact=true; filledSnapped=false; // regrow inside the drawing
+    parts=[makePart(cx,cy)]; assignOne(parts[0],0);  // give the seed a target inside the shape (else it drifts to canvas centre)
+    targetCount=1; shapeClock=0; hasArtifact=true; filledSnapped=false; // regrow inside the drawing
   }
   view.addEventListener('pointerdown', e=>{
-    if(!cfg.draw) return;
+    if(!isDrawTool()) return;
     drawing=true; strokeX=[]; strokeY=[];
     try{ view.setPointerCapture(e.pointerId); }catch(_){}
     addStroke(e); e.preventDefault();
   });
-  view.addEventListener('pointermove', e=>{ if(cfg.draw && drawing) addStroke(e); });
-  view.addEventListener('pointerup', e=>{ if(cfg.draw && drawing){ drawing=false; finishStroke(); } });
+  view.addEventListener('pointermove', e=>{ if(isDrawTool() && drawing) addStroke(e); });
+  view.addEventListener('pointerup', e=>{ if(isDrawTool() && drawing){ drawing=false; finishStroke(); } });
 
   // ---------- postcard gallery ----------
   // Snapshot only when an artifact finishes (not per frame): one downscale + one
@@ -529,10 +558,16 @@
   };
   let hasArtifact=false, filledSnapped=false;
 
-  // ---------- movable shape objects on the single canvas ----------
+  // ---------- camera: pan + zoom into a larger world ----------
+  const cam={ x:0, y:0, zoom:1 };          // x,y = world coord at screen origin; zoom = screen px / world px
+  const ZMIN=0.15, ZMAX=6;
+  const S2Wx=sx=>sx/cam.zoom+cam.x, S2Wy=sy=>sy/cam.zoom+cam.y;   // screen(display px) -> world
+  const W2Sx=wx=>(wx-cam.x)*cam.zoom,  W2Sy=wy=>(wy-cam.y)*cam.zoom; // world -> screen
+
+  // ---------- movable shape objects, positioned in world space ----------
   const DRAG_SLOP=6;
-  const objects=[];            // placed shapes: {img, nx, ny, nw, ar}  (normalized to canvas)
-  let preview=null;            // {img, x, y, w, h} live while dragging the thumbnail in
+  const objects=[];            // placed shapes: {img, wx, wy, ww, ar}  (world centre + world width)
+  let preview=null;            // {img, cx, cy, w, h} live while dragging the thumbnail in (screen px)
 
   function sizeStampCanvas(){}                 // objects draw live each frame; nothing to resize
   const blockClick=e=>{ e.preventDefault(); e.stopPropagation(); };
@@ -545,9 +580,9 @@
   const overTrash=(x,y)=>{ const r=trash.getBoundingClientRect();
     return x>=r.left && x<=r.right && y>=r.top && y<=r.bottom; };
   trash.onclick=()=>clearStamps();
-  // is canvas point (px,py) on the actual (non-transparent) pixels of object o?
+  // is screen point (px,py) on the actual (non-transparent) pixels of object o?
   function hitObject(o, px, py){
-    const w=o.nw*DW, h=w*o.ar, L=o.nx*DW-w/2, T=o.ny*DH-h/2;
+    const w=o.ww*cam.zoom, h=w*o.ar, L=W2Sx(o.wx)-w/2, T=W2Sy(o.wy)-h/2;
     if(px<L||px>L+w||py<T||py>T+h) return false;
     const lx=Math.min(o.img.width-1,  Math.max(0, ((px-L)/w*o.img.width)|0));
     const ly=Math.min(o.img.height-1, Math.max(0, ((py-T)/h*o.img.height)|0));
@@ -569,28 +604,40 @@
   // bake the current live shape into a movable object (thumbnail is made on fill, not here)
   function bakeField(){
     const c=cropLayer(); if(!c) return null;
-    const o={ img:c.canvas, nx:c.cx/DW, ny:c.cy/DH, nw:c.w/DW, ar:c.h/c.w };
+    const o={ img:c.canvas, wx:S2Wx(c.cx), wy:S2Wy(c.cy), ww:c.w/cam.zoom, ar:c.h/c.w };
     objects.push(o);
     return o;
   }
 
-  // drag any placed shape — or grab the live shape — to move it (when not drawing)
+  // pan the world by dragging the empty canvas (or middle mouse in any tool)
+  function startPan(e){
+    e.preventDefault();
+    const sx0=e.clientX, sy0=e.clientY, cx0=cam.x, cy0=cam.y;
+    view.style.cursor='grabbing';
+    const mv=e2=>{ cam.x=cx0-(e2.clientX-sx0)/cam.zoom; cam.y=cy0-(e2.clientY-sy0)/cam.zoom; };
+    const up=()=>{ window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up);
+      view.style.cursor = cfg.tool==='drag'?'default':'crosshair'; };
+    window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
+  }
+  view.addEventListener('pointerdown', e=>{ if(e.button===1) startPan(e); });   // middle-drag pans in any tool
+
+  // drag any placed shape — grab the live shape — or pan empty space (drag tool, left button)
   view.addEventListener('pointerdown', e=>{
-    if(cfg.draw || e.button!==0) return;
+    if(cfg.tool!=='drag' || e.button!==0) return;
     const [px,py]=clientToCanvas(e.clientX,e.clientY);
-    let target=null, gx=0, gy=0;
+    let target=null, gwx=0, gwy=0;
     for(let i=objects.length-1;i>=0;i--){ const o=objects[i];
       if(hitObject(o,px,py)){ objects.splice(i,1); objects.push(o);   // bring to front
-        target=o; gx=px-o.nx*DW; gy=py-o.ny*DH; break; } }
+        target=o; gwx=S2Wx(px)-o.wx; gwy=S2Wy(py)-o.wy; break; } }
     if(!target && parts.length){                              // grab the live shape -> bake & move
       let a=0; try{ a=layerCtx.getImageData(Math.max(0,Math.min(DW-1,px|0)),Math.max(0,Math.min(DH-1,py|0)),1,1).data[3]; }catch(_){}
-      if(a>8){ const o=bakeField(); if(o){ target=o; gx=px-o.nx*DW; gy=py-o.ny*DH;
+      if(a>8){ const o=bakeField(); if(o){ target=o; gwx=S2Wx(px)-o.wx; gwy=S2Wy(py)-o.wy;
         parts=[]; targetCount=0; } }                          // the live field is now a movable object
     }
-    if(!target) return;
+    if(!target){ startPan(e); return; }                       // empty space -> pan the world
     e.preventDefault();
     const mv=e2=>{ const [mx,my]=clientToCanvas(e2.clientX,e2.clientY);
-      target.nx=(mx-gx)/DW; target.ny=(my-gy)/DH;
+      target.wx=S2Wx(mx)-gwx; target.wy=S2Wy(my)-gwy;
       // shrink the shape as it nears the trash
       const tr=trash.getBoundingClientRect(), tcx=tr.left+tr.width/2, tcy=tr.top+tr.height/2;
       const dist=Math.hypot(e2.clientX-tcx, e2.clientY-tcy);
@@ -603,6 +650,16 @@
       trash.classList.remove('hot'); };
     window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
   });
+
+  // wheel to zoom around the cursor (any tool)
+  view.addEventListener('wheel', e=>{
+    e.preventDefault();
+    const r=view.getBoundingClientRect();
+    const sx=(e.clientX-r.left)/r.width*DW, sy=(e.clientY-r.top)/r.height*DH;
+    const wx=S2Wx(sx), wy=S2Wy(sy);
+    cam.zoom=Math.max(ZMIN, Math.min(ZMAX, cam.zoom*Math.exp(-e.deltaY*0.0015)));
+    cam.x=wx - sx/cam.zoom; cam.y=wy - sy/cam.zoom;   // keep the point under the cursor fixed
+  }, {passive:false});
 
   // liquid "pop": overshoots past full size then settles back (easeOutBack)
   const POP_MS=380;
@@ -632,12 +689,43 @@
     };
     const up=e2=>{ window.removeEventListener('pointermove',mv); window.removeEventListener('pointerup',up);
       if(placing && overCanvas(e2.clientX,e2.clientY)){ const [px,py]=clientToCanvas(e2.clientX,e2.clientY);
-        objects.push({ img:src, nx:px/DW, ny:py/DH, nw, ar }); }
+        objects.push({ img:src, wx:S2Wx(px), wy:S2Wy(py), ww:(nw*DW)/cam.zoom, ar }); }
       preview=null; };
     window.addEventListener('pointermove',mv); window.addEventListener('pointerup',up);
   }
   function undoStamp(){ if(objects.length) objects.pop(); }
   function clearStamps(){ objects.length=0; }
+
+  // ---------- import an image and dither it (ordered Bayer, per channel) ----------
+  function ditherImageData(im, levels){
+    const d=im.data, w=im.width, h=im.height, spread=1/Math.max(1,(levels-1));
+    for(let y=0;y<h;y++){ const by=(y%BAYER_N)*BAYER_N;
+      for(let x=0;x<w;x++){ const o=(y*w+x)<<2, thr=BAYER[by+(x%BAYER_N)]-0.5;
+        if(d[o+3]<8){ d[o+3]=0; continue; }        // keep transparency
+        for(let c=0;c<3;c++){ let v=d[o+c]/255 + thr*spread;
+          v=Math.round(v*(levels-1))/(levels-1); d[o+c]=(v<0?0:v>1?1:v)*255; }
+      }
+    }
+  }
+  function placeDitheredImage(img){
+    const iw=img.naturalWidth, ih=img.naturalHeight; if(!iw) return;
+    // dither at the field's cell size so it matches everything else when drawn upscaled
+    const cellsW=Math.max(8, Math.min(360, Math.round(0.6*W)));
+    const cellsH=Math.max(1, Math.round(cellsW*ih/iw));
+    const t=document.createElement('canvas'); t.width=cellsW; t.height=cellsH;
+    const tc=t.getContext('2d'); tc.imageSmoothingEnabled=true; tc.drawImage(img,0,0,cellsW,cellsH);
+    let im; try{ im=tc.getImageData(0,0,cellsW,cellsH); }catch(_){ return; }
+    ditherImageData(im, cfg.importLevels);
+    tc.putImageData(im,0,0);
+    objects.push({ img:t, wx:S2Wx(DW/2), wy:S2Wy(DH/2), ww:(cellsW*SCALE)/cam.zoom, ar:cellsH/cellsW });  // at view centre
+  }
+  function importImageFile(file){
+    if(!file) return;
+    const url=URL.createObjectURL(file), img=new Image();
+    img.onload=()=>{ placeDitheredImage(img); URL.revokeObjectURL(url); };
+    img.onerror=()=>URL.revokeObjectURL(url);
+    img.src=url;
+  }
   const DL_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3v12"/><path d="M7 10l5 5 5-5"/><path d="M5 21h14"/></svg>';
   // each generated shape adds a thumbnail; keep the last 10 (newest on top)
   const thumbs=[]; const MAX_THUMBS=10;
@@ -679,13 +767,13 @@
         ['complexity','Complexity',0.2,2,0.05],
       ]],
       ['POPULATION',[
-        ['maxP','Max spores',100,3000,50, null,null,0, refield],
+        ['maxP','Max spores',100,8000,50, null,null,0, refield],
         ['growth','Multiply speed',0.5,8,0.1],
         ['settle','Motion smoothing',0.0004,0.05,0.0004, null,null,4],
         ['radius','Spore size',1,7,1, null,null,0],
       ]],
       ['RENDER',[
-        ['targetW','Resolution',80,480,10, null,null,0, resize],
+        ['targetW','Resolution',80,1000,10, null,null,0, resize],
         ['ditherScale','Dither scale',1,5,1, null,null,0],
       ]],
       ['LIQUID',[
@@ -730,22 +818,32 @@
     const gp=document.createElement('div'); gp.className='grp';
     gp.innerHTML='<div class="t">Playback</div>';
     gp.appendChild(checkRow('autoCycle','Auto-cycle shapes'));
-    const b=document.createElement('div'); b.className='btns';
-    b.innerHTML=`<button id="bDraw" class="ghost">✎ Draw mode</button>
-                 <button id="bNew">New shape</button>
-                 <button id="bCol" class="ghost">Shuffle colors</button>
-                 <button id="bPause" class="ghost">Pause</button>`;
-    gp.appendChild(b); body.appendChild(gp);
-    const bd=b.querySelector('#bDraw');
-    bd.onclick=()=>{
-      cfg.draw=!cfg.draw;
-      bd.classList.toggle('on', cfg.draw);
-      view.style.cursor = cfg.draw?'crosshair':'default';
-      if(cfg.draw){                       // drawing replaces the auto cycle
+    // tool selector: drag (move/generate) · fill (draw loop -> dither) · pen (freehand line)
+    const tb=document.createElement('div'); tb.className='btns';
+    tb.innerHTML=`<button id="tDrag" class="ghost">✥ Drag</button>
+                  <button id="tFill" class="ghost">◑ Fill</button>
+                  <button id="tPen" class="ghost">✎ Pen</button>`;
+    gp.appendChild(tb);
+    const toolBtns={ drag:tb.querySelector('#tDrag'), fill:tb.querySelector('#tFill'), pen:tb.querySelector('#tPen') };
+    function setTool(t){
+      cfg.tool=t;
+      for(const k in toolBtns) toolBtns[k].classList.toggle('on', k===t);
+      view.style.cursor = t==='drag' ? 'default' : 'crosshair';
+      if(t!=='drag'){                       // a draw tool replaces the auto cycle
         cfg.autoCycle=false;
         const ac=document.querySelector('.chk input[data-key=autoCycle]'); if(ac) ac.checked=false;
       }
-    };
+    }
+    toolBtns.drag.onclick=()=>setTool('drag');
+    toolBtns.fill.onclick=()=>setTool('fill');
+    toolBtns.pen.onclick=()=>setTool('pen');
+    setTool(cfg.tool);
+
+    const b=document.createElement('div'); b.className='btns';
+    b.innerHTML=`<button id="bNew">New shape</button>
+                 <button id="bCol" class="ghost">Shuffle colors</button>
+                 <button id="bPause" class="ghost">Pause</button>`;
+    gp.appendChild(b); body.appendChild(gp);
     b.querySelector('#bNew').onclick=()=>{ shapeClock=0; newShape(); };
     b.querySelector('#bCol').onclick=()=>{ randomTones(); };
     const bp=b.querySelector('#bPause');
@@ -760,6 +858,27 @@
     gd.appendChild(bdd); body.appendChild(gd);
     bdd.querySelector('#bUndo').onclick=undoStamp;
     bdd.querySelector('#bClear').onclick=clearStamps;
+
+    // view (pan & zoom)
+    const gv=document.createElement('div'); gv.className='grp';
+    gv.innerHTML='<div class="t">View</div>';
+    const bv=document.createElement('div'); bv.className='btns';
+    bv.innerHTML=`<button id="bReset" class="ghost">Reset view (1:1)</button>`;
+    gv.appendChild(bv); body.appendChild(gv);
+    bv.querySelector('#bReset').onclick=()=>{ cam.x=0; cam.y=0; cam.zoom=1; };
+
+    // import image (dithered)
+    const gi=document.createElement('div'); gi.className='grp';
+    gi.innerHTML='<div class="t">Import image</div>';
+    gi.appendChild(sliderRow(['importLevels','Dither levels',2,8,1, null,null,0]));
+    const bi=document.createElement('div'); bi.className='btns';
+    bi.innerHTML=`<button id="bImport">Import image…</button>`;
+    gi.appendChild(bi); body.appendChild(gi);
+    const fileInput=document.createElement('input');
+    fileInput.type='file'; fileInput.accept='image/*'; fileInput.style.display='none';
+    document.body.appendChild(fileInput);
+    bi.querySelector('#bImport').onclick=()=>fileInput.click();
+    fileInput.onchange=e=>{ importImageFile(e.target.files&&e.target.files[0]); e.target.value=''; };
 
     // export
     const ge=document.createElement('div'); ge.className='grp';

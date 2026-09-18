@@ -67,15 +67,39 @@ A collapsible panel (top-right) exposes everything live:
 | **Liquid** | thumbnail merge (crisp → gooey glass) |
 | **Tones** | mix floor / ceiling · boundary fuzz · outline width |
 | **Colors** | random-colors toggle · Tone A / Tone B / background / outline (Tone C) |
-| **Playback** | auto-cycle · **Draw mode** · New shape · Shuffle colors · Pause |
+| **Playback** | tool (Drag / Fill / Pen) · auto-cycle · New shape · Shuffle colors · Pause |
 | **Placed shapes** | Undo · Clear |
 | **Export** | Download PNG |
 
-### Draw mode
+### Tools
 
-Click **✎ Draw mode**, then drag a loop on the canvas. On release the stroke becomes
-the outline and the spores regrow to fill inside it. Draw as many as you like — each
-replaces the last. Toggle it off to go back to moving shapes.
+Pick a canvas tool in the Playback group:
+
+- **Drag** *(default)* — move placed shapes around and grab/generate shapes.
+- **Fill** — drag a closed loop; on release the spores regrow to fill inside it as a new
+  dithered shape (no outline left behind).
+- **Pen** — draw a freehand line that stays as a movable stroke you can reposition or
+  bin like any other shape. It's stamped at the field's resolution (so it stays chunky
+  and dithered) in the outline color (Tone C).
+
+### Pan & zoom
+
+The placed shapes live in a large world you can move around:
+
+- **Zoom** with the scroll wheel (zooms toward the cursor).
+- **Pan** by dragging empty canvas in the Drag tool, or middle-mouse-drag in any tool.
+- **Reset view (1:1)** in the panel returns to the origin at 100%.
+
+The active spore field stays centred on your current view; when you commit it (New shape,
+grab, fill) it drops into the world where it appears, so you can build compositions far
+bigger than the screen.
+
+### Import image
+
+**Import image…** (in the panel) loads a picture, orders-dithers it with the Bayer
+matrix (2–8 **Dither levels**), and drops it on the canvas as a movable object — dithered
+at the field's cell size so it matches the rest. It's a normal shape after that: drag it,
+undo/clear it, or bin it.
 
 ### Shapes on the canvas
 
