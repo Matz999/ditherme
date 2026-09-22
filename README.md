@@ -50,9 +50,11 @@ cross, diamond, and so on.
   down the left edge; click any to download it as a full-resolution PNG. The strip
   collapses out of the way.
 - **Full control panel** — live knobs for every parameter (below).
-- **Liquid-glass UI** — frosted, translucent panel and controls; the postcard stack
-  uses an SVG goo filter so adjacent cards fuse where they meet, tunable from crisp
-  joints to soft gooey blobs via the **Postcard merge** knob.
+- **Frosted-glass UI** — the dock buttons, the trash and the controls window share one
+  translucent liquid-glass style. The postcard stack additionally goo-merges its cards into
+  soft blobs, tunable from crisp joints to fully gooey (the default) via the **Liquid merge** knob.
+- **Transform tools** — with the Select tool, a single selected shape shows a rotate handle and
+  corner resize handles, so you can rotate it and scale it up or down on the canvas.
 - **PNG export** of the current frame.
 
 ## Controls
@@ -64,23 +66,33 @@ A collapsible panel (top-right) exposes everything live:
 | **Shape** | cycle length · fill fraction · harmonics min/max · complexity |
 | **Population** | max spores · multiply speed · motion smoothing · spore size |
 | **Render** | resolution (dither pixel size) · dither scale · **pixel style** |
-| **Liquid** | thumbnail merge (crisp → gooey glass) |
+| **Liquid** | liquid merge — dock, controls window & postcard stack (crisp → gooey) |
 | **Tones** | mix floor / ceiling · boundary fuzz · outline width |
 | **Colors** | random-colors toggle · Tone A / Tone B / background / outline (Tone C) |
 | **Playback** | tool (Drag / Fill / Pen) · auto-cycle · New shape · Shuffle colors · Pause |
 | **Placed shapes** | Undo · Clear |
 | **Export** | Download PNG |
 
-### Tools
+### The dock
 
-Pick a canvas tool in the Playback group:
+A row of frosted-glass buttons floats at the **top-left** — the same liquid-glass chip as the
+trash and the controls window. Each button is **separate and draggable** (drag to reposition,
+tap to use). The buttons:
 
-- **Drag** *(default)* — move placed shapes around and grab/generate shapes.
+- **Select** *(default)* — drag a marquee box to select shapes, then drag to move them
+  (or drag a single shape directly); grabbing the live generated shape drops it into the
+  world. With **one** shape selected, drag a **corner handle to resize** it or the **top
+  handle to rotate** it. Drop a selection on the trash to delete it.
 - **Fill** — drag a closed loop; on release the spores regrow to fill inside it as a new
   dithered shape (no outline left behind).
-- **Pen** — draw a freehand line that stays as a movable stroke you can reposition or
-  bin like any other shape. It's stamped at the field's resolution (so it stays chunky
-  and dithered) in the outline color (Tone C).
+- **Pen** — draw a freehand line that stays as a movable stroke (stamped at the field's
+  resolution so it's chunky and dithered) in the outline color (Tone C).
+- **Postcards** — show/hide the postcard gallery.
+- **ditherme** (logo) — show/hide the dither controls panel.
+- **Import** — bring in an image and dither it.
+
+Tap a button to use it; drag it to reposition. Pan with Space+drag or middle-mouse; zoom
+with the wheel.
 
 ### Pan & zoom
 
